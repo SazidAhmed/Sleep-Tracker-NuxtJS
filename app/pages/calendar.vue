@@ -8,6 +8,7 @@ definePageMeta({
 
 const {
   settings,
+  sessions,
   formatDurationFromMinutes,
   formatMonthLabel,
   shiftMonth,
@@ -19,7 +20,7 @@ const selectedMonth = ref(new Date(new Date().getFullYear(), new Date().getMonth
 const weekdayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 const monthCalendar = computed(() =>
-  buildMonthGrid(selectedMonth.value, [], settings.value.dailyGoalHours, todayKey.value),
+  buildMonthGrid(selectedMonth.value, sessions.value, settings.value.dailyGoalHours, todayKey.value),
 )
 
 const monthAverageMinutes = computed(() => {

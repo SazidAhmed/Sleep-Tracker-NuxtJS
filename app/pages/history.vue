@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { BarChart3, TrendingUp, TrendingDown, Clock, CalendarDays } from 'lucide-vue-next'
+import { BarChart3, TrendingUp, TrendingDown, Clock, CalendarDays, Flame } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
+import { buildRecentHistory } from '@/lib/sleep'
 
 definePageMeta({
   layout: 'mobile',
@@ -8,11 +9,18 @@ definePageMeta({
 
 const {
   weekHistory,
+  currentStreak,
+  completionDays,
   insights,
+  sessions,
+  settings,
+  todayKey,
   formatDurationFromMinutes,
   formatDateLabel,
+  averageSleepMinutes,
 } = useSleepData()
 
+// 7-day bar chart
 const weeklyChart = computed(() => {
   const maxMinutes = Math.max(...weekHistory.value.map(day => day.minutes), 8 * 60, 60)
   return weekHistory.value.map((day) => {
@@ -24,6 +32,43 @@ const weeklyChart = computed(() => {
       height: `${Math.max((day.minutes / maxMinutes) * 100, day.minutes ? 20 : 8)}%`,
     }
   })
+})
+
+// 30-day line/area trend chart (SVG)
+const thirtyDayHistory = computed(() =>
+  buildRecentHistory(todayKey.value, sessions.value, settings.value.dailyGoalHours, 30),
+)
+
+const trendChart = computed(() => {
+  const data = thirtyDayHistory.value
+  const goalMinutes = settings.value.dailyGoalHours * 60
+  const maxMinutes = Math.max(...data.map(d => d.minutes), goalMinutes, 60)
+  const W = 320
+  const H = 100
+  const pad = 4
+
+  const points = data.map((d, i) => ({
+    x: pad + (i / (data.length - 1)) * (W - pad * 2),
+    y: H - pad - ((d.minutes / maxMinutes) * (H - pad * 2)),
+    minutes: d.minutes,
+    date: d.date,
+    met: d.remainingMinutes === 0 && d.goalMinutes > 0,
+  }))
+
+  // SVG polyline points string
+  const linePoints = points.map(p => `${p.x},${p.y}`).join(' ')
+
+  // Area polygon (close bottom)
+  const areaPoints = [
+    `${points[0]!.x},${H - pad}`,
+    ...points.map(p => `${p.x},${p.y}`),
+    `${points[points.length - 1]!.x},${H - pad}`,
+  ].join(' ')
+
+  // Goal line Y
+  const goalY = H - pad - ((goalMinutes / maxMinutes) * (H - pad * 2))
+
+  return { points, linePoints, areaPoints, goalY, W, H }
 })
 
 const reversedHistory = computed(() => [...weekHistory.value].reverse())
@@ -41,7 +86,90 @@ const reversedHistory = computed(() => [...weekHistory.value].reverse())
       </div>
     </header>
 
-    <!-- Weekly Chart -->
+    <!-- Streak + 7-Day Summary row -->
+    <div class="mb-4 grid grid-cols-3 gap-3">
+      <div class="rounded-2xl border border-border/60 bg-card p-3 text-center">
+        <Flame
+          class="mx-auto mb-1 size-5"
+          :class="currentStreak > 0 ? 'text-orange-500' : 'text-muted-foreground'"
+        />
+        <p class="text-xl font-bold">{{ currentStreak }}</p>
+        <p class="text-[10px] text-muted-foreground">Day Streak</p>
+      </div>
+      <div class="rounded-2xl border border-border/60 bg-card p-3 text-center">
+        <p class="text-xl font-bold">{{ completionDays }}/7</p>
+        <p class="text-[10px] text-muted-foreground">Goals This Week</p>
+      </div>
+      <div class="rounded-2xl border border-border/60 bg-card p-3 text-center">
+        <p class="text-xl font-bold">{{ formatDurationFromMinutes(averageSleepMinutes) }}</p>
+        <p class="text-[10px] text-muted-foreground">7-Day Avg</p>
+      </div>
+    </div>
+
+    <!-- 30-Day Trend Chart -->
+    <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <h2 class="mb-1 text-sm font-medium text-muted-foreground">30-Day Trend</h2>
+      <p class="mb-3 text-xs text-muted-foreground/60">Dashed line = daily goal</p>
+      <svg
+        :viewBox="`0 0 ${trendChart.W} ${trendChart.H}`"
+        class="w-full"
+        preserveAspectRatio="none"
+        style="height: 100px;"
+      >
+        <!-- Gradient fill -->
+        <defs>
+          <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="hsl(var(--primary))" stop-opacity="0.25" />
+            <stop offset="100%" stop-color="hsl(var(--primary))" stop-opacity="0.02" />
+          </linearGradient>
+        </defs>
+
+        <!-- Area fill -->
+        <polygon
+          :points="trendChart.areaPoints"
+          fill="url(#trendGradient)"
+        />
+
+        <!-- Trend line -->
+        <polyline
+          :points="trendChart.linePoints"
+          fill="none"
+          stroke="hsl(var(--primary))"
+          stroke-width="2"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+        />
+
+        <!-- Goal dashed line -->
+        <line
+          :x1="4"
+          :y1="trendChart.goalY"
+          :x2="trendChart.W - 4"
+          :y2="trendChart.goalY"
+          stroke="hsl(var(--muted-foreground))"
+          stroke-width="1"
+          stroke-dasharray="4 3"
+          opacity="0.5"
+        />
+
+        <!-- Data point dots for goal-met days -->
+        <circle
+          v-for="(pt, i) in trendChart.points"
+          :key="i"
+          :cx="pt.x"
+          :cy="pt.y"
+          r="2.5"
+          :fill="pt.met ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'"
+          opacity="0.7"
+        />
+      </svg>
+      <div class="mt-2 flex justify-between text-[10px] text-muted-foreground">
+        <span>30 days ago</span>
+        <span>Today</span>
+      </div>
+    </div>
+
+    <!-- 7-Day Bar Chart -->
     <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
       <h2 class="mb-4 text-sm font-medium text-muted-foreground">Last 7 Days</h2>
       <div class="flex h-40 items-end justify-between gap-2">
@@ -144,7 +272,7 @@ const reversedHistory = computed(() => [...weekHistory.value].reverse())
               class="text-xs"
               :class="day.remainingMinutes === 0 ? 'text-primary' : 'text-muted-foreground'"
             >
-              {{ day.remainingMinutes === 0 ? 'Completed' : `${Math.round(day.percentage)}%` }}
+              {{ day.remainingMinutes === 0 ? 'Completed ✓' : `${Math.round(day.percentage)}%` }}
             </p>
           </div>
         </div>

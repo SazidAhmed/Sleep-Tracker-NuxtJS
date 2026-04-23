@@ -3,6 +3,7 @@ import {
   buildMonthGrid,
   buildGuidance,
   buildRecentHistory,
+  calculateStreak,
   formatDateLabel,
   formatDateTimeLabel,
   formatDurationFromMinutes,
@@ -57,6 +58,10 @@ export function useSleepData() {
 
   const completionDays = computed(() =>
     weekHistory.value.filter(day => day.remainingMinutes === 0 && day.goalMinutes > 0).length,
+  )
+
+  const currentStreak = computed(() =>
+    calculateStreak(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours),
   )
 
   const latestSession = computed(() => normalizedSessions.value[0] ?? null)
@@ -239,6 +244,7 @@ export function useSleepData() {
     weekHistory,
     averageSleepMinutes,
     completionDays,
+    currentStreak,
     latestSession,
     guidance,
     notificationSupported,

@@ -186,25 +186,58 @@ export function buildGuidance(summary: DailySleepSummary, anchorTime: string, no
     return 'Set a daily sleep goal to start tracking progress.'
 
   if (summary.remainingMinutes === 0)
-    return 'Goal completed for this calendar day. Extra sleep still counts toward recovery.'
+    return '\uD83C\uDF89 Goal completed for today! Extra rest still helps your recovery.'
 
   const remaining = formatDurationFromMinutes(summary.remainingMinutes)
+  const sessionCount = summary.sessions.length
 
-  if (anchorTime) {
-    const [hours, minutes] = anchorTime.split(':').map(Number)
-    const anchor = new Date(now)
-    anchor.setHours(hours || 0, minutes || 0, 0, 0)
-    const passedAnchor = now.getTime() >= anchor.getTime()
-
-    if (passedAnchor)
-      return `You still need ${remaining} today. A second block after ${anchorTime} would complete the goal.`
-
-    return `You still need ${remaining} today. Plan your next sleep block before ${anchorTime} if you expect an early wake-up.`
+  if (!anchorTime) {
+    if (sessionCount === 0)
+      return `You haven't logged any sleep today. You need ${remaining} to hit your goal.`
+    return `You still need ${remaining} today. Log another sleep block when you rest again.`
   }
 
-  return `You still need ${remaining} today to hit your target.`
+  const [anchorHours, anchorMins] = anchorTime.split(':').map(Number)
+  const anchor = new Date(now)
+  anchor.setHours(anchorHours || 0, anchorMins || 0, 0, 0)
+  const passedAnchor = now.getTime() >= anchor.getTime()
+  const anchorLabel = anchor.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+
+  if (sessionCount === 0) {
+    if (passedAnchor)
+      return `You haven't slept yet today and it's past ${anchorLabel}. Try to get ${remaining} of rest as soon as possible.`
+    return `No sleep logged yet. You need ${remaining}. A full block before ${anchorLabel} would complete your goal.`
+  }
+
+  if (passedAnchor)
+    return `You still need ${remaining} today. A second sleep block after ${anchorLabel} would complete your goal.`
+
+  return `You've started tracking. ${remaining} more to go. Plan your next block before ${anchorLabel} if you expect an early wake-up.`
 }
 
 export function isSessionValid(session: SleepSession) {
   return getSessionDurationMinutes(session) > 0
+}
+
+export function calculateStreak(today: string, sessions: SleepSession[], goalHours: number): number {
+  let streak = 0
+  let date = today
+
+  for (let i = 0; i < 365; i++) {
+    const summary = summarizeSleepDay(date, sessions, goalHours)
+    if (summary.remainingMinutes === 0 && summary.goalMinutes > 0) {
+      streak++
+    }
+    else {
+      // Skip today if it's still in progress
+      if (i === 0) {
+        date = addDays(date, -1)
+        continue
+      }
+      break
+    }
+    date = addDays(date, -1)
+  }
+
+  return streak
 }

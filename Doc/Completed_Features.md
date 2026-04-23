@@ -76,3 +76,18 @@
     The app has a dashboard interface for desktop and mobile with sections for progress, history, charts, insights, monthly view, timer mode, reminders, settings, backup, and session logging.
 37. **Production build verified**
     The current implementation builds successfully with `npm run build`.
+38. **Calendar sessions bug fixed**
+    The monthly calendar view previously displayed zero sleep on all days because sessions were not being passed to the grid builder. This is now corrected and the calendar accurately shows logged sleep totals and goal completion state for each day.
+39. **Smarter dynamic guidance messages**
+    The guidance message on the dashboard now gives context-aware suggestions based on three factors: how much sleep remains, whether the anchor time has passed, and how many sessions have already been logged today. Examples include prompts about a first sleep block, a second block after prayer time, and urgency messages when the anchor time has passed and no sleep has been logged yet.
+40. **All-time consecutive streak tracker**
+    The app now calculates the current consecutive streak of days where the daily sleep goal was fully met. The streak walks backwards through up to 365 days of history. Today is excluded from breaking the streak if it is still in progress. The streak is displayed on the dashboard with a flame icon that turns orange when an active streak exists.
+41. **30-day SVG trend chart**
+    The history page now includes a full-width SVG area chart showing the last 30 days of sleep totals. The chart includes a gradient fill under the trend line, a dashed horizontal line showing the daily goal, and color-coded dots for each day where the goal was met versus partial progress. Labels show the range from 30 days ago to today.
+42. **Streak and weekly summary row on history page**
+    The history page now opens with a three-card summary row showing the all-time day streak, the number of goals met in the last 7 days, and the 7-day average sleep duration.
+43. **PWA manifest and offline caching**
+    The app is now configured as a Progressive Web App using `@vite-pwa/nuxt`. A web app manifest defines the app name, theme color, standalone display mode, and a custom moon icon. Workbox caches all static assets and Google Fonts for offline use. The service worker is only registered in production builds so it does not cause spurious 404 warnings in the development console.
+44. **Custom PWA app icon**
+    A 512x512 moon icon has been generated and added to the public directory for use as the PWA home screen icon across all platforms.
+

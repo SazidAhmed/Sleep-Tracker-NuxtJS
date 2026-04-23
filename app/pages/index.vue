@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MoonStar, Clock, Zap, ArrowRight } from 'lucide-vue-next'
+import { MoonStar, Clock, Zap, Flame, ArrowRight } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
 
 definePageMeta({
@@ -12,6 +12,7 @@ const {
   latestSession,
   averageSleepMinutes,
   completionDays,
+  currentStreak,
   formatDurationFromMinutes,
   formatDateLabel,
   formatTimeLabel,
@@ -108,10 +109,10 @@ const isGoalCompleted = computed(() => todaySummary.value.remainingMinutes === 0
       </div>
       <div class="rounded-3xl bg-muted/50 p-4">
         <div class="mb-1 flex items-center gap-2">
-          <div class="size-4 rounded-full bg-primary" />
-          <p class="text-xs text-muted-foreground">Goal Streak</p>
+          <Flame class="size-4" :class="currentStreak > 0 ? 'text-orange-500' : 'text-muted-foreground'" />
+          <p class="text-xs text-muted-foreground">Streak</p>
         </div>
-        <p class="text-xl font-semibold">{{ completionDays }}/7 days</p>
+        <p class="text-xl font-semibold">{{ currentStreak }} <span class="text-sm font-normal text-muted-foreground">days</span></p>
       </div>
     </div>
 
