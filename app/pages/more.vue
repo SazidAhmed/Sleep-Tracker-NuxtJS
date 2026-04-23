@@ -145,43 +145,58 @@ const activeSection = ref<'sessions' | 'settings' | null>(null)
     <!-- Header -->
     <header class="mb-6 flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <div class="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+        <div class="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/30">
           <MoreHorizontal class="size-5" />
         </div>
-        <span class="text-lg font-semibold">More</span>
+        <div>
+          <span class="text-lg font-semibold">More</span>
+          <p class="text-xs text-muted-foreground">Manage sessions & settings</p>
+        </div>
       </div>
     </header>
 
     <!-- Menu Cards -->
     <div v-if="!activeSection" class="space-y-3">
       <button
-        class="flex w-full items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left shadow-sm"
+        class="group flex w-full items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
         @click="activeSection = 'sessions'"
       >
-        <div class="flex size-12 items-center justify-center rounded-xl bg-primary/10">
+        <div class="flex size-12 items-center justify-center rounded-xl bg-primary/10 transition-colors group-hover:bg-primary/20">
           <Clock class="size-6 text-primary" />
         </div>
         <div class="flex-1">
           <p class="font-semibold">Session Log</p>
-          <p class="text-sm text-muted-foreground">{{ sessions.length }} sessions logged</p>
+          <p class="text-sm text-muted-foreground">{{ sessions.length }} session{{ sessions.length === 1 ? '' : 's' }} logged</p>
         </div>
-        <ChevronRight class="size-5 text-muted-foreground" />
+        <ChevronRight class="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
       </button>
 
       <button
-        class="flex w-full items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left shadow-sm"
+        class="group flex w-full items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
         @click="activeSection = 'settings'"
       >
-        <div class="flex size-12 items-center justify-center rounded-xl bg-secondary">
-          <Settings class="size-6" />
+        <div class="flex size-12 items-center justify-center rounded-xl bg-secondary transition-colors group-hover:bg-primary/10">
+          <Settings class="size-6 transition-colors group-hover:text-primary" />
         </div>
         <div class="flex-1">
           <p class="font-semibold">Settings</p>
           <p class="text-sm text-muted-foreground">Goal, reminders, backup</p>
         </div>
-        <ChevronRight class="size-5 text-muted-foreground" />
+        <ChevronRight class="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
       </button>
+
+      <!-- App info -->
+      <div class="mt-6 rounded-2xl border border-border/40 bg-muted/30 p-4">
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">About</p>
+        <p class="text-sm font-medium">Sleep Tracker</p>
+        <p class="text-xs text-muted-foreground">Track split sleep sessions, daily goals, and recovery progress. All data is stored locally — no account required.</p>
+        <div class="mt-3 flex items-center gap-2">
+          <div class="size-2 rounded-full bg-green-500" />
+          <span class="text-xs text-muted-foreground">Local-first · Offline ready · PWA installable</span>
+        </div>
+      </div>
     </div>
+
 
     <!-- Session Log Section -->
     <div v-if="activeSection === 'sessions'" class="space-y-4">

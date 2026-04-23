@@ -8,7 +8,12 @@ export default defineNuxtConfig({
   vite: {
     plugins: [tailwindcss()],
   },
-  modules: ['shadcn-nuxt', '@vite-pwa/nuxt'],
+  modules: ['shadcn-nuxt', '@vite-pwa/nuxt', '@nuxtjs/color-mode'],
+  colorMode: {
+    classSuffix: '',
+    preference: 'system',
+    fallback: 'light',
+  },
   shadcn: {
     prefix: '',
     componentDir: './app/components/ui',

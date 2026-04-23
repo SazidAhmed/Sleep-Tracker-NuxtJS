@@ -71,6 +71,9 @@ const trendChart = computed(() => {
   return { points, linePoints, areaPoints, goalY, W, H }
 })
 
+const hasAnyData = computed(() => thirtyDayHistory.value.some(d => d.minutes > 0))
+const hasWeekData = computed(() => weekHistory.value.some(d => d.minutes > 0))
+
 const reversedHistory = computed(() => [...weekHistory.value].reverse())
 </script>
 
@@ -110,6 +113,15 @@ const reversedHistory = computed(() => [...weekHistory.value].reverse())
     <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
       <h2 class="mb-1 text-sm font-medium text-muted-foreground">30-Day Trend</h2>
       <p class="mb-3 text-xs text-muted-foreground/60">Dashed line = daily goal</p>
+
+      <!-- Empty state -->
+      <div v-if="!hasAnyData" class="flex flex-col items-center justify-center py-8 text-center">
+        <div class="mb-2 text-3xl">📊</div>
+        <p class="text-sm font-medium text-muted-foreground">No sleep data yet</p>
+        <p class="text-xs text-muted-foreground/70">Start logging sleep sessions to see your trend here</p>
+      </div>
+
+      <template v-else>
       <svg
         :viewBox="`0 0 ${trendChart.W} ${trendChart.H}`"
         class="w-full"
@@ -167,12 +179,20 @@ const reversedHistory = computed(() => [...weekHistory.value].reverse())
         <span>30 days ago</span>
         <span>Today</span>
       </div>
+      </template>
     </div>
 
     <!-- 7-Day Bar Chart -->
     <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
       <h2 class="mb-4 text-sm font-medium text-muted-foreground">Last 7 Days</h2>
-      <div class="flex h-40 items-end justify-between gap-2">
+
+      <!-- Empty state -->
+      <div v-if="!hasWeekData" class="flex flex-col items-center justify-center py-8 text-center">
+        <div class="mb-2 text-3xl">🌙</div>
+        <p class="text-sm font-medium text-muted-foreground">No sessions this week</p>
+        <p class="text-xs text-muted-foreground/70">Log your first sleep block to track weekly progress</p>
+      </div>
+      <div v-else class="flex h-40 items-end justify-between gap-2">
         <div
           v-for="day in weeklyChart"
           :key="day.date"

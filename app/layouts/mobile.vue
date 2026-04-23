@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Timer, Sun, BarChart3, Calendar, MoreHorizontal } from 'lucide-vue-next'
+import { Timer, Sun, BarChart3, Calendar, MoreHorizontal, Moon, SunMedium } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
+const colorMode = useColorMode()
 
 const tabs = [
   { name: 'Timer', path: '/timer', icon: Timer },
@@ -16,6 +17,12 @@ const activeTab = computed(() => {
   const currentPath = route.path
   return tabs.find(tab => tab.path === currentPath)?.name ?? 'Today'
 })
+
+const isDark = computed(() => colorMode.value === 'dark')
+
+function toggleDark() {
+  colorMode.preference = isDark.value ? 'light' : 'dark'
+}
 
 function navigateTo(path: string) {
   router.push(path)
@@ -36,18 +43,40 @@ useSeoMeta({
 
     <!-- Bottom Navigation -->
     <nav class="fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/95 backdrop-blur-md">
-      <div class="mx-auto flex h-16 w-full max-w-md items-center justify-around px-2">
+      <div class="mx-auto flex h-16 w-full max-w-md items-center justify-around px-1">
         <button
           v-for="tab in tabs"
           :key="tab.path"
-          class="flex flex-col items-center justify-center gap-1 px-3 py-2 transition-colors"
-          :class="activeTab === tab.name ? 'text-primary' : 'text-muted-foreground'"
+          class="flex flex-col items-center justify-center gap-0.5 px-2 py-2 transition-all duration-200"
+          :class="activeTab === tab.name
+            ? 'text-primary'
+            : 'text-muted-foreground hover:text-foreground'"
           @click="navigateTo(tab.path)"
         >
-          <component :is="tab.icon" class="size-5" />
-          <span class="text-[10px] font-medium">
+          <div
+            class="flex size-8 items-center justify-center rounded-xl transition-all duration-200"
+            :class="activeTab === tab.name ? 'bg-primary/12' : ''"
+          >
+            <component :is="tab.icon" class="size-5" />
+          </div>
+          <span
+            class="text-[10px] font-medium transition-all duration-200"
+            :class="activeTab === tab.name ? 'font-semibold' : ''"
+          >
             {{ tab.name }}
           </span>
+        </button>
+
+        <!-- Dark Mode Toggle -->
+        <button
+          class="flex flex-col items-center justify-center gap-0.5 px-2 py-2 text-muted-foreground transition-all duration-200 hover:text-foreground"
+          @click="toggleDark"
+        >
+          <div class="flex size-8 items-center justify-center rounded-xl">
+            <Moon v-if="!isDark" class="size-5" />
+            <SunMedium v-else class="size-5" />
+          </div>
+          <span class="text-[10px] font-medium">{{ isDark ? 'Light' : 'Dark' }}</span>
         </button>
       </div>
       <!-- Safe area padding for notched devices -->

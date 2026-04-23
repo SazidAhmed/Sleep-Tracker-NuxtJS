@@ -86,7 +86,7 @@ function goToNextMonth() {
         <div
           v-for="label in weekdayLabels"
           :key="label"
-          class="py-2 text-xs font-medium text-muted-foreground"
+          class="py-2 text-xs font-semibold text-muted-foreground"
         >
           {{ label }}
         </div>
@@ -97,39 +97,55 @@ function goToNextMonth() {
         <div
           v-for="day in monthCalendar.days"
           :key="day.date"
-          class="aspect-square rounded-xl p-1"
+          class="relative overflow-hidden rounded-xl pb-1 pt-2"
           :class="[
-            day.inCurrentMonth ? 'bg-background' : 'bg-muted/30 text-muted-foreground',
-            day.isToday ? 'ring-2 ring-primary' : '',
-            day.remainingMinutes === 0 && day.minutes > 0 ? 'bg-primary/10' : '',
+            day.inCurrentMonth ? 'bg-background' : 'bg-muted/20',
+            day.isToday ? 'ring-2 ring-primary ring-offset-1 ring-offset-card' : '',
           ]"
         >
-          <div class="flex h-full flex-col items-center justify-center gap-1">
-            <span class="text-xs font-medium">{{ new Date(`${day.date}T00:00:00`).getDate() }}</span>
+          <!-- Day number -->
+          <div class="flex flex-col items-center">
             <span
-              v-if="day.minutes > 0"
-              class="text-[9px] font-semibold"
-              :class="day.remainingMinutes === 0 ? 'text-primary' : 'text-muted-foreground'"
+              class="text-xs font-semibold leading-tight"
+              :class="[
+                !day.inCurrentMonth ? 'text-muted-foreground/40' : '',
+                day.isToday ? 'text-primary' : '',
+              ]"
+            >
+              {{ new Date(`${day.date}T00:00:00`).getDate() }}
+            </span>
+            <!-- Sleep time label -->
+            <span
+              v-if="day.minutes > 0 && day.inCurrentMonth"
+              class="mt-0.5 text-[8px] font-bold leading-none"
+              :class="day.remainingMinutes === 0 ? 'text-primary' : 'text-orange-500'"
             >
               {{ formatDurationFromMinutes(day.minutes) }}
             </span>
           </div>
+
+          <!-- Color bar at bottom of cell -->
+          <div
+            v-if="day.minutes > 0 && day.inCurrentMonth"
+            class="absolute bottom-0 left-0 right-0 h-1 rounded-full"
+            :class="day.remainingMinutes === 0 ? 'bg-primary' : 'bg-orange-400'"
+          />
         </div>
       </div>
     </div>
 
     <!-- Legend -->
-    <div class="mt-4 flex items-center justify-center gap-4 text-xs text-muted-foreground">
-      <div class="flex items-center gap-1">
-        <div class="size-3 rounded-full bg-primary" />
+    <div class="mt-4 flex items-center justify-center gap-6 text-xs text-muted-foreground">
+      <div class="flex items-center gap-1.5">
+        <div class="h-1.5 w-4 rounded-full bg-primary" />
         <span>Goal Met</span>
       </div>
-      <div class="flex items-center gap-1">
-        <div class="size-3 rounded-full bg-accent" />
+      <div class="flex items-center gap-1.5">
+        <div class="h-1.5 w-4 rounded-full bg-orange-400" />
         <span>Partial</span>
       </div>
-      <div class="flex items-center gap-1">
-        <div class="size-3 rounded-full border border-primary" />
+      <div class="flex items-center gap-1.5">
+        <div class="size-3 rounded-sm ring-2 ring-primary" />
         <span>Today</span>
       </div>
     </div>
