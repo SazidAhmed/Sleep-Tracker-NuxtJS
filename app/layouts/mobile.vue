@@ -58,6 +58,12 @@ useSeoMeta({
 
 <style>
 .h-safe-area-inset-bottom {
-  height: env(safe-area-inset-bottom, 0px);
+  height: 16px;
+}
+
+@supports (height: env(safe-area-inset-bottom)) {
+  .h-safe-area-inset-bottom {
+    height: env(safe-area-inset-bottom, 16px);
+  }
 }
 </style>
