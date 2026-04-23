@@ -90,4 +90,15 @@
     The app is now configured as a Progressive Web App using `@vite-pwa/nuxt`. A web app manifest defines the app name, theme color, standalone display mode, and a custom moon icon. Workbox caches all static assets and Google Fonts for offline use. The service worker is only registered in production builds so it does not cause spurious 404 warnings in the development console.
 44. **Custom PWA app icon**
     A 512x512 moon icon has been generated and added to the public directory for use as the PWA home screen icon across all platforms.
-
+45. **Dark Mode Support**
+    The app now fully supports dark mode, utilizing `@nuxtjs/color-mode` with a deep navy-black background. A toggle is conveniently located in the bottom navigation bar to switch between light and dark themes, persisting user preference.
+46. **SVG Arc Timer Ring**
+    The sleep timer page features an animated SVG arc ring that visually fills up as sleep time progresses relative to the daily goal, providing a live visual indicator of completion percentage.
+47. **Chart Empty States**
+    Both the 30-day trend chart and the 7-day bar chart now display helpful, user-friendly empty states (with icons and messaging) when there is insufficient sleep data, preventing the UI from looking broken.
+48. **Calendar UI Enhancements**
+    The monthly calendar grid has been polished for readability. Days with logged sleep now display a color-coded indicator bar at the bottom (primary color for goal met, orange for partial progress), and text sizing/spacing is optimized.
+49. **Settings/More Page Enhancements**
+    The "More" page has been refined with a clearer header subtitle, interactive menu cards with hover animations (border glows, icon color shifts, and sliding chevrons), and an informative "About" section detailing the app's local-first architecture.
+50. **Dashboard UI Polish**
+    The home page progress bar now uses dynamic opacity scaling (40% to 100%) so that even small percentages are clearly visible. Additional visual polish includes a proper pill badge for the date, an icon in the guidance banner, an active-state orange glow for the streak card, and refined typography.
