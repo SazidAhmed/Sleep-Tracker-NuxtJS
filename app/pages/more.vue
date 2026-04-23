@@ -1,0 +1,377 @@
+<script setup lang="ts">
+import { MoreHorizontal, Search, Settings, Bell, Download, Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Clock } from 'lucide-vue-next'
+import { useSleepData } from '@/composables/useSleepData'
+import { toDateTimeLocalValue, type SleepSession } from '@/lib/sleep'
+
+definePageMeta({
+  layout: 'mobile',
+})
+
+const {
+  settings,
+  sessions,
+  reminderEnabled,
+  reminderTime,
+  notificationSupported,
+  notificationPermission,
+  removeSession,
+  saveSession,
+  requestNotificationPermission,
+  exportBackup,
+  importBackup,
+  formatDurationFromMinutes,
+  formatDateTimeLabel,
+  formatTimeLabel,
+  getSessionDurationMinutes,
+} = useSleepData()
+
+// Search and filter
+const searchQuery = ref('')
+const dateFilter = ref<'all' | '7days' | '30days' | 'thisMonth'>('all')
+
+const filteredSessions = computed(() => {
+  let result = [...sessions.value]
+
+  // Date filter
+  if (dateFilter.value !== 'all') {
+    const now = new Date()
+    const cutoff = new Date()
+    switch (dateFilter.value) {
+      case '7days':
+        cutoff.setDate(now.getDate() - 7)
+        break
+      case '30days':
+        cutoff.setDate(now.getDate() - 30)
+        break
+      case 'thisMonth':
+        cutoff.setDate(1)
+        break
+    }
+    result = result.filter(s => new Date(s.start) >= cutoff)
+  }
+
+  // Text search
+  if (searchQuery.value.trim()) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(s =>
+      formatDateTimeLabel(s.start).toLowerCase().includes(query) ||
+      formatDateTimeLabel(s.end).toLowerCase().includes(query) ||
+      formatDurationFromMinutes(getSessionDurationMinutes(s)).includes(query),
+    )
+  }
+
+  return result
+})
+
+// Editing
+const editingSession = ref<SleepSession | null>(null)
+const editForm = reactive({ start: '', end: '' })
+const editError = ref('')
+
+function startEdit(session: SleepSession) {
+  editingSession.value = session
+  editForm.start = session.start.slice(0, 16)
+  editForm.end = session.end.slice(0, 16)
+  editError.value = ''
+}
+
+function cancelEdit() {
+  editingSession.value = null
+  editError.value = ''
+}
+
+function saveEdit() {
+  editError.value = ''
+  if (!editingSession.value) return
+
+  const result = saveSession(
+    { start: editForm.start, end: editForm.end },
+    editingSession.value.id,
+  )
+
+  if (result.error) {
+    editError.value = result.error
+    return
+  }
+
+  editingSession.value = null
+}
+
+// Backup
+const backupMessage = ref('')
+const backupError = ref('')
+const importInput = ref<HTMLInputElement | null>(null)
+
+function handleExport() {
+  backupMessage.value = ''
+  backupError.value = ''
+  exportBackup()
+  backupMessage.value = 'Backup exported successfully.'
+}
+
+async function handleImport(event: Event) {
+  backupMessage.value = ''
+  backupError.value = ''
+
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  try {
+    const content = await file.text()
+    const parsed = JSON.parse(content)
+    const result = importBackup(parsed)
+
+    if (result.error) {
+      backupError.value = result.error
+    } else {
+      backupMessage.value = `Imported ${result.count} session${result.count === 1 ? '' : 's'}.`
+    }
+  }
+  catch {
+    backupError.value = 'Could not read this backup file.'
+  }
+  finally {
+    input.value = ''
+  }
+}
+
+// Active section
+const activeSection = ref<'sessions' | 'settings' | null>(null)
+</script>
+
+<template>
+  <div class="min-h-screen p-4 pb-24">
+    <!-- Header -->
+    <header class="mb-6 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+          <MoreHorizontal class="size-5" />
+        </div>
+        <span class="text-lg font-semibold">More</span>
+      </div>
+    </header>
+
+    <!-- Menu Cards -->
+    <div v-if="!activeSection" class="space-y-3">
+      <button
+        class="flex w-full items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left shadow-sm"
+        @click="activeSection = 'sessions'"
+      >
+        <div class="flex size-12 items-center justify-center rounded-xl bg-primary/10">
+          <Clock class="size-6 text-primary" />
+        </div>
+        <div class="flex-1">
+          <p class="font-semibold">Session Log</p>
+          <p class="text-sm text-muted-foreground">{{ sessions.length }} sessions logged</p>
+        </div>
+        <ChevronRight class="size-5 text-muted-foreground" />
+      </button>
+
+      <button
+        class="flex w-full items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left shadow-sm"
+        @click="activeSection = 'settings'"
+      >
+        <div class="flex size-12 items-center justify-center rounded-xl bg-secondary">
+          <Settings class="size-6" />
+        </div>
+        <div class="flex-1">
+          <p class="font-semibold">Settings</p>
+          <p class="text-sm text-muted-foreground">Goal, reminders, backup</p>
+        </div>
+        <ChevronRight class="size-5 text-muted-foreground" />
+      </button>
+    </div>
+
+    <!-- Session Log Section -->
+    <div v-if="activeSection === 'sessions'" class="space-y-4">
+      <div class="mb-4 flex items-center gap-2">
+        <Button variant="ghost" size="icon" @click="activeSection = null">
+          <ChevronLeft class="size-5" />
+        </Button>
+        <span class="text-lg font-semibold">Session Log</span>
+      </div>
+
+      <!-- Search & Filter -->
+      <div class="space-y-3">
+        <div class="relative">
+          <Search class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            v-model="searchQuery"
+            placeholder="Search sessions..."
+            class="rounded-xl pl-10"
+          />
+        </div>
+        <div class="flex gap-2 overflow-x-auto pb-1">
+          <Button
+            v-for="option in [
+              { value: 'all', label: 'All' },
+              { value: '7days', label: '7 Days' },
+              { value: '30days', label: '30 Days' },
+              { value: 'thisMonth', label: 'This Month' },
+            ]"
+            :key="option.value"
+            variant="outline"
+            size="sm"
+            class="shrink-0 rounded-full"
+            :class="dateFilter === option.value ? 'bg-primary text-primary-foreground' : ''"
+            @click="dateFilter = option.value as any"
+          >
+            {{ option.label }}
+          </Button>
+        </div>
+      </div>
+
+      <!-- Session List -->
+      <div class="space-y-3">
+        <div
+          v-for="session in filteredSessions"
+          :key="session.id"
+          class="rounded-2xl border border-border/60 bg-card p-4"
+        >
+          <div v-if="editingSession?.id === session.id" class="space-y-3">
+            <div class="space-y-2">
+              <Label class="text-xs">Start</Label>
+              <Input v-model="editForm.start" type="datetime-local" class="rounded-xl" />
+            </div>
+            <div class="space-y-2">
+              <Label class="text-xs">End</Label>
+              <Input v-model="editForm.end" type="datetime-local" class="rounded-xl" />
+            </div>
+            <p v-if="editError" class="text-xs text-destructive">{{ editError }}</p>
+            <div class="flex gap-2">
+              <Button variant="outline" size="sm" class="flex-1" @click="cancelEdit">Cancel</Button>
+              <Button size="sm" class="flex-1" @click="saveEdit">Save</Button>
+            </div>
+          </div>
+          <div v-else class="flex items-start justify-between">
+            <div>
+              <p class="font-semibold">
+                {{ formatDurationFromMinutes(getSessionDurationMinutes(session)) }}
+              </p>
+              <p class="text-xs text-muted-foreground">
+                {{ formatDateTimeLabel(session.start) }} - {{ formatTimeLabel(session.end) }}
+              </p>
+            </div>
+            <div class="flex gap-1">
+              <Button variant="ghost" size="icon" class="size-8" @click="startEdit(session)">
+                <Pencil class="size-4" />
+              </Button>
+              <Button variant="ghost" size="icon" class="size-8" @click="removeSession(session.id)">
+                <Trash2 class="size-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <p v-if="filteredSessions.length === 0" class="py-8 text-center text-sm text-muted-foreground">
+          No sessions found.
+        </p>
+      </div>
+    </div>
+
+    <!-- Settings Section -->
+    <div v-if="activeSection === 'settings'" class="space-y-4">
+      <div class="mb-4 flex items-center gap-2">
+        <Button variant="ghost" size="icon" @click="activeSection = null">
+          <ChevronLeft class="size-5" />
+        </Button>
+        <span class="text-lg font-semibold">Settings</span>
+      </div>
+
+      <!-- Daily Goal -->
+      <div class="rounded-2xl border border-border/60 bg-card p-4">
+        <div class="mb-4 flex items-center gap-2">
+          <Settings class="size-5 text-muted-foreground" />
+          <h3 class="font-semibold">Daily Goal</h3>
+        </div>
+        <div class="space-y-4">
+          <div class="space-y-2">
+            <Label class="text-sm">Goal Hours</Label>
+            <Input
+              v-model.number="settings.dailyGoalHours"
+              type="number"
+              min="1"
+              max="14"
+              step="0.5"
+              class="rounded-xl"
+            />
+          </div>
+          <div class="space-y-2">
+            <Label class="text-sm">Prayer/Wake Anchor</Label>
+            <Input v-model="settings.anchorTime" type="time" class="rounded-xl" />
+          </div>
+          <p class="text-xs text-muted-foreground">
+            Anchor is for guidance only. Sleep totals follow calendar dates.
+          </p>
+        </div>
+      </div>
+
+      <!-- Reminders -->
+      <div class="rounded-2xl border border-border/60 bg-card p-4">
+        <div class="mb-4 flex items-center gap-2">
+          <Bell class="size-5 text-muted-foreground" />
+          <h3 class="font-semibold">Reminders</h3>
+        </div>
+        <div class="space-y-4">
+          <div class="space-y-2">
+            <Label class="text-sm">Reminder Time</Label>
+            <Input v-model="reminderTime" type="time" class="rounded-xl" />
+          </div>
+
+          <div class="rounded-xl bg-muted/50 p-3">
+            <p class="text-xs text-muted-foreground">Permission</p>
+            <p class="text-sm font-medium capitalize">
+              {{ notificationSupported ? notificationPermission : 'unsupported' }}
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <Button
+              v-if="notificationSupported && notificationPermission !== 'granted'"
+              variant="outline"
+              class="rounded-xl"
+              @click="requestNotificationPermission"
+            >
+              Allow Notifications
+            </Button>
+            <Button
+              v-if="notificationSupported && notificationPermission === 'granted'"
+              variant="outline"
+              class="rounded-xl"
+              @click="reminderEnabled = !reminderEnabled"
+            >
+              {{ reminderEnabled ? 'Disable' : 'Enable' }} Reminders
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Backup -->
+      <div class="rounded-2xl border border-border/60 bg-card p-4">
+        <div class="mb-4 flex items-center gap-2">
+          <Download class="size-5 text-muted-foreground" />
+          <h3 class="font-semibold">Backup</h3>
+        </div>
+        <div class="space-y-3">
+          <Button variant="outline" class="w-full rounded-xl" @click="handleExport">
+            <Upload class="mr-2 size-4" />
+            Export Backup
+          </Button>
+          <Button variant="outline" class="w-full rounded-xl" @click="importInput?.click()">
+            <Download class="mr-2 size-4" />
+            Import Backup
+          </Button>
+          <input ref="importInput" type="file" accept="application/json" class="hidden" @change="handleImport">
+
+          <p v-if="backupMessage" class="rounded-xl bg-primary/10 px-3 py-2 text-xs text-primary">
+            {{ backupMessage }}
+          </p>
+          <p v-if="backupError" class="rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {{ backupError }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
