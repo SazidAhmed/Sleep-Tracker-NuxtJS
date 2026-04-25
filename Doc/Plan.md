@@ -1,71 +1,80 @@
-I’d build this as a simple local-first web app with 4 core parts:
+# Sleep Tracker - Improvement Plan
 
-1. **Settings**
-   * Set a daily sleep goal like **7h** or **8h**.
-   * Set an optional prayer/wake anchor time, since your routine changes across months.
-   * Store everything in local storage first so the app works without signup.
-2. **Sleep Sessions**
-   * Add each sleep block with **start** and **end** datetime.
-   * Support both patterns:
-     * one full night sleep like **9:00 PM -> 5:00 AM**
-     * split sleep like **1:00 AM -> 5:00 AM** and **8:00 AM -> 12:00 PM**
-   * Allow editing/deleting sessions because sleep logs often need correction.
-3. **Daily Tracking Logic**
-   * For each calendar date, total all sleep that belongs to that date.
-   * Correctly split sessions across midnight.
-     Example:
-     * **9:00 PM -> 5:00 AM**
-     * count **3h** for day 1 and **5h** for day 2
-   * Show:
-     * total slept today
-     * remaining sleep to hit goal
-     * whether goal is completed
-     * recent daily history
-4. **Dynamic Guidance**
-   * Don’t assume sleep happens only at night.
-   * Use your logged pattern plus optional prayer/wake time to generate suggestions like:
-     * “You still need 2h 15m today”
-     * “A second sleep block after prayer would complete your goal”
-   * This keeps the app flexible when prayer time changes seasonally.
+## Phase 1: Quick Wins (High Value, Low Effort) ✅ COMPLETE
 
-**Recommended MVP**
-I’d start with this first version:
+### UX Polish
+- [ ] **Onboarding flow** - First-time tutorial for new users explaining split-sleep concept
+- [x] **Empty states** - Better illustrations/messaging when no data exists
+- [ ] **Pull-to-refresh** - Swipe down to refresh dashboard data
+- [x] **Undo delete** - Snackbar with undo option after swipe-to-delete
 
-* Daily goal setting
-* Add/edit/delete sleep sessions
-* Today progress card
-* Last 7 days summary
-* Local persistence
-* Split-sleep handling across midnight
-* Optional prayer/wake time field for guidance
+### Data Improvements
+- [x] **Session templates** - Quick-log common sleep patterns (e.g., "Night Sleep" 10PM-5AM)
+- [x] **Duplicate session** - Copy an existing session as starting point for new entry
+- [ ] **Bulk edit tags** - Select multiple sessions to add/remove tags
+- [ ] **Default tag suggestions** - Auto-suggest tags based on time of day
 
-**Second Phase**
-After MVP works well, we can add:
+## Phase 2: Core Features (High Value, Medium Effort) 🚧 PARTIAL
 
-* monthly calendar view
-* charts
-* streaks
-* reminders
-* automatic “start sleep / stop sleep” timer mode
-* export/import backup
-* cloud sync
+### Smart Enhancements ✅
+- [x] **Optimal wake time** - Suggest wake times based on 90-minute sleep cycles from session start
+- [ ] **Sleep efficiency** - Optional "time in bed" vs "actual sleep time" tracking
+- [ ] **Pattern detection** - Alert when deviating from established sleep schedule
+- [ ] **Goal achievement forecast** - "At current rate, you'll hit goal by 10 PM"
 
-**Tech Choice**
-Since your workspace is **Vue**, I’d recommend:
+### Analytics Expansion
+- [ ] **Weekly/Monthly reports** - PDF export with charts and insights
+- [ ] **Compare periods** - Side-by-side week vs week, month vs month
+- [ ] **Sleep start time trends** - Track if bedtime is getting earlier/later
+- [ ] **Tag effectiveness** - Which tags correlate with highest quality sleep
 
-* **Vue 3 + Vite**
-* local storage for data
-* clean single-page dashboard UI
+### Data Sync & Backup
+- [ ] **Automatic daily backup** - Auto-export JSON to Downloads folder
+- [ ] **Session recovery** - Restore interrupted timer after browser crash/close
+- [ ] **Data validation** - Repair corrupted localStorage automatically
 
-**Important Product Decision**
-We should define one rule clearly before building:
+## Phase 3: Integrations (High Value, Higher Effort) - SKIPPED
 
-* Should the app count sleep by **calendar date** (**12:00 AM -> 11:59 PM**)?
-* Or by a **custom sleep day boundary** like after Fajr/prayer?
+Per user request, skipping health platform integrations:
+- ❌ Apple Health export
+- ❌ Google Fit export  
+- ❌ Cloud sync option
 
-This matters because for your routine, a session like **1 AM -> 5 AM** may logically belong to the “previous night,” even though technically it is on the new calendar date.
+### Completed from this phase ✅
+- [x] **Bedtime reminders** - Notification when approaching usual sleep time
+- [x] **Wind-down alerts** - 30 min before target bedtime
+- [x] **Goal completion nudges** - "You need 2 more hours today" at 8 PM
+- [x] **Missed goal follow-up** - "Yesterday was tough, aim for 7 hours today"
+- [x] **PWA / installable** - Add to home screen prompt with offline support
 
-If you want, next I can turn this into:
+## Phase 4: Advanced Features (Lower Priority)
 
-1. a feature list with exact screens, or
-2. a database/data model and UI flow for the Vue app.
+### Technical
+- [ ] **Unit tests** - Test core sleep calculation functions
+- [ ] **E2E tests** - Playwright tests for critical user flows
+- [ ] **Virtual scrolling** - For session lists when >100 entries
+- [ ] **Data compression** - Compress localStorage when it grows large
+
+### Accessibility
+- [ ] **Screen reader support** - ARIA labels on charts and interactive elements
+- [ ] **Reduced motion** - Respect prefers-reduced-motion setting
+- [ ] **Colorblind-friendly** - Alternative color schemes for heatmap/charts
+
+### Localization
+- [ ] **i18n framework** - Multi-language support structure
+- [ ] **12h/24h format** - Time format preference in settings
+- [ ] **RTL support** - Right-to-left language compatibility
+
+## Recently Implemented (This Session)
+
+- [x] Empty States component with icons and CTAs
+- [x] Session Templates - create, use, delete templates with duration/quality/tags
+- [x] Duplicate Session - copy button in session log
+- [x] Undo Delete - toast with 5-second undo window
+- [x] Optimal Wake Time - 90-minute cycle suggestions in timer
+- [x] Smart Reminders - bedtime, wind-down, goal nudge, missed goal follow-up
+- [x] PWA Install Prompt - banner on dashboard with dismiss
+
+## Notes
+
+Skipped health platform integrations per user request. Remaining work: Onboarding flow, PDF reports, auto-backup, session recovery.

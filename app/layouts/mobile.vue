@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Timer, Sun, BarChart3, Calendar, MoreHorizontal, Moon, SunMedium } from 'lucide-vue-next'
+import { Timer, Sun, BarChart3, Calendar, MoreHorizontal, Moon, SunMedium, Flame, Sparkles } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -9,6 +9,8 @@ const tabs = [
   { name: 'Timer', path: '/timer', icon: Timer },
   { name: 'Today', path: '/', icon: Sun },
   { name: 'History', path: '/history', icon: BarChart3 },
+  { name: 'Heat', path: '/heatmap', icon: Flame },
+  { name: 'Tips', path: '/recommendations', icon: Sparkles },
   { name: 'Calendar', path: '/calendar', icon: Calendar },
   { name: 'More', path: '/more', icon: MoreHorizontal },
 ]

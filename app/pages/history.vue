@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BarChart3, TrendingUp, TrendingDown, Clock, CalendarDays, Flame } from 'lucide-vue-next'
+import { BarChart3, TrendingUp, TrendingDown, Clock, CalendarDays, Flame, AlertCircle, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Coffee, Target, Activity, Moon, Sparkles, Tag } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
 import { buildRecentHistory } from '@/lib/sleep'
 
@@ -15,6 +15,12 @@ const {
   sessions,
   settings,
   todayKey,
+  sleepDebt,
+  socialJetlag,
+  goalForecast,
+  periodComparison,
+  bedtimeTrend,
+  tagEffectiveness,
   formatDurationFromMinutes,
   formatDateLabel,
   averageSleepMinutes,
@@ -107,6 +113,62 @@ const reversedHistory = computed(() => [...weekHistory.value].reverse())
         <p class="text-xl font-bold">{{ formatDurationFromMinutes(averageSleepMinutes) }}</p>
         <p class="text-[10px] text-muted-foreground">7-Day Avg</p>
       </div>
+    </div>
+
+    <!-- Sleep Debt Card -->
+    <div class="mb-4 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <div class="mb-3 flex items-center gap-2">
+        <AlertCircle
+          class="size-5"
+          :class="sleepDebt.totalDebtMinutes > 0 ? 'text-amber-500' : 'text-green-500'"
+        />
+        <h2 class="text-sm font-medium text-muted-foreground">30-Day Sleep Debt</h2>
+      </div>
+
+      <div v-if="sleepDebt.daysTracked === 0" class="py-4 text-center">
+        <p class="text-sm text-muted-foreground">No sleep data recorded yet</p>
+      </div>
+
+      <template v-else>
+        <div class="mb-3 flex items-baseline gap-2">
+          <p class="text-3xl font-bold" :class="sleepDebt.totalDebtMinutes > 0 ? 'text-amber-500' : 'text-green-500'">
+            {{ formatDurationFromMinutes(sleepDebt.totalDebtMinutes) }}
+          </p>
+          <span class="text-sm text-muted-foreground">total debt</span>
+        </div>
+
+        <div class="mb-3 grid grid-cols-2 gap-3">
+          <div class="rounded-xl bg-muted/50 p-3">
+            <p class="text-xs text-muted-foreground">Avg per day</p>
+            <p class="text-lg font-semibold">{{ formatDurationFromMinutes(sleepDebt.averageDebtMinutes) }}</p>
+          </div>
+          <div class="rounded-xl bg-muted/50 p-3">
+            <p class="text-xs text-muted-foreground">Days with debt</p>
+            <p class="text-lg font-semibold">{{ sleepDebt.daysWithDebt }}/{{ sleepDebt.daysTracked }}</p>
+          </div>
+        </div>
+
+        <div v-if="sleepDebt.largestDebtDay" class="mb-3 rounded-xl bg-muted/30 p-3">
+          <p class="text-xs text-muted-foreground">Largest deficit</p>
+          <p class="text-sm font-medium">
+            {{ formatDurationFromMinutes(sleepDebt.largestDebtDay.debtMinutes) }}
+            <span class="text-muted-foreground">on {{ formatDateLabel(sleepDebt.largestDebtDay.date).split(',')[0] }}</span>
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs">
+          <component
+            :is="sleepDebt.recentTrend === 'improving' ? ArrowDownRight : sleepDebt.recentTrend === 'worsening' ? ArrowUpRight : Minus"
+            class="size-4"
+            :class="sleepDebt.recentTrend === 'improving' ? 'text-green-500' : sleepDebt.recentTrend === 'worsening' ? 'text-red-500' : 'text-muted-foreground'"
+          />
+          <span
+            :class="sleepDebt.recentTrend === 'improving' ? 'text-green-500' : sleepDebt.recentTrend === 'worsening' ? 'text-red-500' : 'text-muted-foreground'"
+          >
+            {{ sleepDebt.recentTrend === 'improving' ? 'Debt decreasing - great progress!' : sleepDebt.recentTrend === 'worsening' ? 'Debt increasing - prioritize rest' : 'Debt stable' }}
+          </span>
+        </div>
+      </template>
     </div>
 
     <!-- 30-Day Trend Chart -->
@@ -241,6 +303,59 @@ const reversedHistory = computed(() => [...weekHistory.value].reverse())
       </div>
     </div>
 
+    <!-- Social Jetlag Card -->
+    <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <div class="mb-3 flex items-center gap-2">
+        <div
+          class="flex size-8 items-center justify-center rounded-lg"
+          :class="socialJetlag.severity === 'none' ? 'bg-green-100' : socialJetlag.severity === 'mild' ? 'bg-yellow-100' : socialJetlag.severity === 'moderate' ? 'bg-orange-100' : 'bg-red-100'"
+        >
+          <Briefcase
+            class="size-4"
+            :class="socialJetlag.severity === 'none' ? 'text-green-600' : socialJetlag.severity === 'mild' ? 'text-yellow-600' : socialJetlag.severity === 'moderate' ? 'text-orange-600' : 'text-red-600'"
+          />
+        </div>
+        <h2 class="text-sm font-medium text-muted-foreground">Social Jetlag</h2>
+      </div>
+
+      <div v-if="socialJetlag.weekdayCount === 0 || socialJetlag.weekendCount === 0" class="py-4 text-center">
+        <p class="text-sm text-muted-foreground">Need more data to calculate</p>
+        <p class="text-xs text-muted-foreground/70">Track both weekday and weekend sleep</p>
+      </div>
+
+      <template v-else>
+        <div class="mb-3 flex items-baseline gap-2">
+          <p class="text-3xl font-bold" :class="socialJetlag.severity === 'none' ? 'text-green-500' : socialJetlag.severity === 'mild' ? 'text-yellow-500' : socialJetlag.severity === 'moderate' ? 'text-orange-500' : 'text-red-500'">
+            {{ socialJetlag.socialJetlagHours }}h
+          </p>
+          <span class="text-sm text-muted-foreground">difference</span>
+        </div>
+
+        <div class="mb-3 grid grid-cols-2 gap-3">
+          <div class="rounded-xl bg-muted/50 p-3">
+            <div class="mb-1 flex items-center gap-1">
+              <Briefcase class="size-3 text-muted-foreground" />
+              <p class="text-[10px] text-muted-foreground">Weekday Avg</p>
+            </div>
+            <p class="text-lg font-semibold">{{ formatDurationFromMinutes(socialJetlag.weekdayAvgMinutes) }}</p>
+          </div>
+          <div class="rounded-xl bg-muted/50 p-3">
+            <div class="mb-1 flex items-center gap-1">
+              <Coffee class="size-3 text-muted-foreground" />
+              <p class="text-[10px] text-muted-foreground">Weekend Avg</p>
+            </div>
+            <p class="text-lg font-semibold">{{ formatDurationFromMinutes(socialJetlag.weekendAvgMinutes) }}</p>
+          </div>
+        </div>
+
+        <div class="rounded-xl p-3" :class="socialJetlag.severity === 'none' ? 'bg-green-500/10' : socialJetlag.severity === 'mild' ? 'bg-yellow-500/10' : socialJetlag.severity === 'moderate' ? 'bg-orange-500/10' : 'bg-red-500/10'">
+          <p class="text-xs" :class="socialJetlag.severity === 'none' ? 'text-green-600' : socialJetlag.severity === 'mild' ? 'text-yellow-600' : socialJetlag.severity === 'moderate' ? 'text-orange-600' : 'text-red-600'">
+            {{ socialJetlag.severity === 'none' ? '✓ Great consistency! Your sleep schedule is consistent.' : socialJetlag.severity === 'mild' ? '⚠ Mild jetlag. Try to keep closer schedules.' : socialJetlag.severity === 'moderate' ? '⚠ Moderate jetlag. This can affect your health.' : '⚠ Severe jetlag. Consider adjusting your routine.' }}
+          </p>
+        </div>
+      </template>
+    </div>
+
     <!-- More Insights -->
     <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
       <h2 class="mb-4 text-sm font-medium text-muted-foreground">Sleep Insights</h2>
@@ -294,6 +409,109 @@ const reversedHistory = computed(() => [...weekHistory.value].reverse())
             >
               {{ day.remainingMinutes === 0 ? 'Completed ✓' : `${Math.round(day.percentage)}%` }}
             </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Goal Forecast -->
+    <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <div class="mb-3 flex items-center gap-2">
+        <Target class="size-5 text-primary" />
+        <h2 class="text-sm font-medium text-muted-foreground">Goal Forecast</h2>
+      </div>
+      <div class="rounded-xl bg-muted/30 p-4">
+        <p class="text-sm">{{ goalForecast.message }}</p>
+        <p v-if="goalForecast.suggestedBedtime" class="mt-2 text-xs text-muted-foreground">
+          Suggested wake time: {{ goalForecast.suggestedBedtime }}
+        </p>
+      </div>
+    </div>
+
+    <!-- Period Comparison -->
+    <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <div class="mb-3 flex items-center gap-2">
+        <Activity class="size-5 text-blue-500" />
+        <h2 class="text-sm font-medium text-muted-foreground">Week vs Week</h2>
+      </div>
+      <div class="mb-3 grid grid-cols-2 gap-3">
+        <div class="rounded-xl bg-muted/30 p-3">
+          <p class="text-xs text-muted-foreground">This Week</p>
+          <p class="text-lg font-semibold">{{ formatDurationFromMinutes(periodComparison.period1.avgMinutes) }}</p>
+          <p class="text-xs text-muted-foreground">{{ periodComparison.period1.goalMetDays }}/{{ periodComparison.period1.totalDays }} goals met</p>
+        </div>
+        <div class="rounded-xl bg-muted/30 p-3">
+          <p class="text-xs text-muted-foreground">Last Week</p>
+          <p class="text-lg font-semibold">{{ formatDurationFromMinutes(periodComparison.period2.avgMinutes) }}</p>
+          <p class="text-xs text-muted-foreground">{{ periodComparison.period2.goalMetDays }}/{{ periodComparison.period2.totalDays }} goals met</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <component
+          :is="periodComparison.trend === 'improved' ? TrendingUp : periodComparison.trend === 'declined' ? TrendingDown : Minus"
+          class="size-4"
+          :class="periodComparison.trend === 'improved' ? 'text-green-500' : periodComparison.trend === 'declined' ? 'text-red-500' : 'text-muted-foreground'"
+        />
+        <span
+          class="text-sm"
+          :class="periodComparison.trend === 'improved' ? 'text-green-500' : periodComparison.trend === 'declined' ? 'text-red-500' : 'text-muted-foreground'"
+        >
+          {{ periodComparison.difference > 0 ? '+' : '' }}{{ periodComparison.difference }}% {{ periodComparison.trend }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Bedtime Trend -->
+    <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <div class="mb-3 flex items-center gap-2">
+        <Moon class="size-5 text-indigo-500" />
+        <h2 class="text-sm font-medium text-muted-foreground">Bedtime Trend</h2>
+      </div>
+      <div class="rounded-xl bg-muted/30 p-4">
+        <p class="text-sm">{{ bedtimeTrend.message }}</p>
+        <div v-if="bedtimeTrend.avgChangeMinutes > 0" class="mt-2 flex items-center gap-2">
+          <component
+            :is="bedtimeTrend.trend === 'earlier' ? TrendingDown : TrendingUp"
+            class="size-4"
+            :class="bedtimeTrend.trend === 'earlier' ? 'text-green-500' : 'text-amber-500'"
+          />
+          <span class="text-xs text-muted-foreground">
+            {{ bedtimeTrend.avgChangeMinutes }} min {{ bedtimeTrend.trend }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tag Effectiveness -->
+    <div v-if="tagEffectiveness.length > 0" class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <div class="mb-3 flex items-center gap-2">
+        <Tag class="size-5 text-teal-500" />
+        <h2 class="text-sm font-medium text-muted-foreground">Tag Effectiveness</h2>
+      </div>
+      <div class="space-y-2">
+        <div
+          v-for="tag in tagEffectiveness.slice(0, 5)"
+          :key="tag.tag"
+          class="flex items-center justify-between rounded-xl bg-muted/30 p-3"
+        >
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{{ tag.tag }}</span>
+              <span class="text-xs text-muted-foreground">{{ tag.sessionCount }} sessions</span>
+            </div>
+            <p class="mt-1 text-xs text-muted-foreground">{{ tag.recommendation }}</p>
+          </div>
+          <div class="text-right">
+            <div class="flex items-center gap-1">
+              <span class="text-sm font-semibold">{{ tag.avgQuality }}</span>
+              <span class="text-xs">/5</span>
+            </div>
+            <span
+              class="text-xs"
+              :class="tag.vsOverallAvg > 0 ? 'text-green-500' : tag.vsOverallAvg < 0 ? 'text-red-500' : 'text-muted-foreground'"
+            >
+              {{ tag.vsOverallAvg > 0 ? '+' : '' }}{{ tag.vsOverallAvg }}%
+            </span>
           </div>
         </div>
       </div>

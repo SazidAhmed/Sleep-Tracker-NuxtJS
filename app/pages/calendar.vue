@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
+import { useSwipe } from '@/composables/useSwipe'
 
 definePageMeta({
   layout: 'mobile',
@@ -36,6 +37,13 @@ function goToPreviousMonth() {
 function goToNextMonth() {
   selectedMonth.value = shiftMonth(selectedMonth.value, 1)
 }
+
+// Swipe gestures for month navigation
+const calendarContainer = ref<HTMLElement | null>(null)
+useSwipe(calendarContainer, {
+  onSwipeLeft: goToNextMonth,
+  onSwipeRight: goToPreviousMonth,
+})
 </script>
 
 <template>
@@ -80,7 +88,7 @@ function goToNextMonth() {
     </div>
 
     <!-- Calendar Grid -->
-    <div class="rounded-3xl border border-border/60 bg-card p-4 shadow-sm">
+    <div ref="calendarContainer" class="rounded-3xl border border-border/60 bg-card p-4 shadow-sm touch-pan-y">
       <!-- Weekday Headers -->
       <div class="mb-2 grid grid-cols-7 gap-1 text-center">
         <div

@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { MoreHorizontal, Search, Settings, Bell, Download, Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Clock } from 'lucide-vue-next'
+import { MoreHorizontal, Search, Settings, Bell, Download, Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Clock, Copy, Undo2 } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
-import { toDateTimeLocalValue, type SleepSession } from '@/lib/sleep'
+import { toDateTimeLocalValue, type SleepSession, SLEEP_TAGS, getQualityEmoji, getQualityLabel } from '@/lib/sleep'
+import { useSwipeToDelete } from '@/composables/useSwipe'
+import { defineComponent } from 'vue'
 
 definePageMeta({
   layout: 'mobile',
@@ -10,20 +12,57 @@ definePageMeta({
 const {
   settings,
   sessions,
+  lastDeletedSession,
   reminderEnabled,
   reminderTime,
+  bedtimeReminderEnabled,
+  bedtimeReminderTime,
+  windDownReminderEnabled,
+  windDownMinutes,
+  goalNudgeReminderEnabled,
+  goalNudgeTime,
+  missedGoalReminderEnabled,
   notificationSupported,
   notificationPermission,
   removeSession,
+  undoDelete,
   saveSession,
   requestNotificationPermission,
   exportBackup,
   importBackup,
+  exportCSV,
   formatDurationFromMinutes,
   formatDateTimeLabel,
   formatTimeLabel,
   getSessionDurationMinutes,
 } = useSleepData()
+
+// Undo functionality
+function handleUndoDelete() {
+  const result = undoDelete()
+  if (result.success) {
+    duplicateMessage.value = 'Session restored'
+    setTimeout(() => duplicateMessage.value = '', 2000)
+  }
+}
+
+const duplicateMessage = ref('')
+
+function duplicateSession(session: SleepSession) {
+  // Create a new session with same times but new ID and current timestamp
+  const result = saveSession({
+    start: session.start,
+    end: session.end,
+    quality: session.quality,
+    tags: session.tags,
+    notes: session.notes ? `Copied: ${session.notes}` : 'Duplicated session',
+  })
+
+  if (result.success) {
+    duplicateMessage.value = 'Session duplicated'
+    setTimeout(() => duplicateMessage.value = '', 2000)
+  }
+}
 
 // Search and filter
 const searchQuery = ref('')
@@ -65,13 +104,16 @@ const filteredSessions = computed(() => {
 
 // Editing
 const editingSession = ref<SleepSession | null>(null)
-const editForm = reactive({ start: '', end: '' })
+const editForm = reactive({ start: '', end: '', quality: undefined as 1 | 2 | 3 | 4 | 5 | undefined, tags: [] as string[], notes: '' })
 const editError = ref('')
 
 function startEdit(session: SleepSession) {
   editingSession.value = session
   editForm.start = session.start.slice(0, 16)
   editForm.end = session.end.slice(0, 16)
+  editForm.quality = session.quality
+  editForm.tags = session.tags ?? []
+  editForm.notes = session.notes ?? ''
   editError.value = ''
 }
 
@@ -85,7 +127,7 @@ function saveEdit() {
   if (!editingSession.value) return
 
   const result = saveSession(
-    { start: editForm.start, end: editForm.end },
+    { start: editForm.start, end: editForm.end, quality: editForm.quality, tags: editForm.tags, notes: editForm.notes },
     editingSession.value.id,
   )
 
@@ -107,6 +149,13 @@ function handleExport() {
   backupError.value = ''
   exportBackup()
   backupMessage.value = 'Backup exported successfully.'
+}
+
+function handleCSVExport() {
+  backupMessage.value = ''
+  backupError.value = ''
+  exportCSV()
+  backupMessage.value = 'CSV exported successfully.'
 }
 
 async function handleImport(event: Event) {
@@ -138,6 +187,40 @@ async function handleImport(event: Event) {
 
 // Active section
 const activeSection = ref<'sessions' | 'settings' | null>(null)
+
+// Swipeable session item component
+const SwipeableSessionItem = defineComponent({
+  props: {
+    session: {
+      type: Object as () => SleepSession,
+      required: true,
+    },
+  },
+  setup(props) {
+    const itemRef = ref<HTMLElement | null>(null)
+    const { translateX } = useSwipeToDelete(itemRef, () => {
+      removeSession(props.session.id)
+    })
+
+    return { itemRef, translateX }
+  },
+  template: `
+    <div class="relative overflow-hidden rounded-2xl">
+      <!-- Delete background -->
+      <div class="absolute inset-0 flex items-center justify-end bg-red-500 pr-4">
+        <Trash2 class="size-5 text-white" />
+      </div>
+      <!-- Content -->
+      <div
+        ref="itemRef"
+        class="relative bg-card transition-transform duration-200"
+        :style="{ transform: \`translateX(\${translateX}px)\` }"
+      >
+        <slot />
+      </div>
+    </div>
+  `,
+})
 </script>
 
 <template>
@@ -239,9 +322,10 @@ const activeSection = ref<'sessions' | 'settings' | null>(null)
 
       <!-- Session List -->
       <div class="space-y-3">
-        <div
+        <SwipeableSessionItem
           v-for="session in filteredSessions"
           :key="session.id"
+          :session="session"
           class="rounded-2xl border border-border/60 bg-card p-4"
         >
           <div v-if="editingSession?.id === session.id" class="space-y-3">
@@ -253,6 +337,38 @@ const activeSection = ref<'sessions' | 'settings' | null>(null)
               <Label class="text-xs">End</Label>
               <Input v-model="editForm.end" type="datetime-local" class="rounded-xl" />
             </div>
+            <div class="space-y-2">
+              <Label class="text-xs">Quality</Label>
+              <div class="flex gap-1">
+                <button
+                  v-for="n in 5"
+                  :key="n"
+                  class="flex-1 rounded-lg py-2 text-lg transition-all"
+                  :class="editForm.quality === n ? 'bg-primary text-primary-foreground' : 'bg-secondary/40 hover:bg-secondary'"
+                  @click="editForm.quality = editForm.quality === n ? undefined : n as 1 | 2 | 3 | 4 | 5"
+                >
+                  {{ getQualityEmoji(n) }}
+                </button>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <Label class="text-xs">Tags</Label>
+              <div class="flex flex-wrap gap-1">
+                <button
+                  v-for="tag in SLEEP_TAGS"
+                  :key="tag"
+                  class="rounded-full px-2 py-1 text-[10px] font-medium transition-all"
+                  :class="editForm.tags.includes(tag) ? 'bg-primary text-primary-foreground' : 'bg-secondary/40 text-muted-foreground hover:bg-secondary'"
+                  @click="editForm.tags.includes(tag) ? editForm.tags.splice(editForm.tags.indexOf(tag), 1) : editForm.tags.push(tag)"
+                >
+                  {{ tag }}
+                </button>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <Label class="text-xs">Notes</Label>
+              <textarea v-model="editForm.notes" rows="2" class="w-full rounded-xl bg-secondary/40 px-3 py-2 text-sm outline-none" placeholder="How did you sleep?" />
+            </div>
             <p v-if="editError" class="text-xs text-destructive">{{ editError }}</p>
             <div class="flex gap-2">
               <Button variant="outline" size="sm" class="flex-1" @click="cancelEdit">Cancel</Button>
@@ -260,15 +376,35 @@ const activeSection = ref<'sessions' | 'settings' | null>(null)
             </div>
           </div>
           <div v-else class="flex items-start justify-between">
-            <div>
-              <p class="font-semibold">
-                {{ formatDurationFromMinutes(getSessionDurationMinutes(session)) }}
-              </p>
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <p class="font-semibold">
+                  {{ formatDurationFromMinutes(getSessionDurationMinutes(session)) }}
+                </p>
+                <span v-if="session.quality" class="text-lg" :title="getQualityLabel(session.quality)">
+                  {{ getQualityEmoji(session.quality) }}
+                </span>
+              </div>
               <p class="text-xs text-muted-foreground">
                 {{ formatDateTimeLabel(session.start) }} - {{ formatTimeLabel(session.end) }}
               </p>
+              <div v-if="session.tags?.length" class="mt-1 flex flex-wrap gap-1">
+                <span
+                  v-for="tag in session.tags"
+                  :key="tag"
+                  class="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary"
+                >
+                  {{ tag }}
+                </span>
+              </div>
+              <p v-if="session.notes" class="mt-1 text-xs text-muted-foreground">
+                {{ session.notes }}
+              </p>
             </div>
             <div class="flex gap-1">
+              <Button variant="ghost" size="icon" class="size-8" @click="duplicateSession(session)">
+                <Copy class="size-4" />
+              </Button>
               <Button variant="ghost" size="icon" class="size-8" @click="startEdit(session)">
                 <Pencil class="size-4" />
               </Button>
@@ -277,11 +413,33 @@ const activeSection = ref<'sessions' | 'settings' | null>(null)
               </Button>
             </div>
           </div>
-        </div>
+        </SwipeableSessionItem>
+
+        <p v-if="duplicateMessage" class="py-2 text-center text-sm text-primary">
+          {{ duplicateMessage }}
+        </p>
 
         <p v-if="filteredSessions.length === 0" class="py-8 text-center text-sm text-muted-foreground">
           No sessions found.
         </p>
+      </div>
+
+      <!-- Undo Delete Toast -->
+      <div
+        v-if="lastDeletedSession"
+        class="fixed bottom-20 left-4 right-4 z-50 flex items-center justify-between rounded-2xl bg-foreground p-4 text-background shadow-lg"
+      >
+        <div class="flex items-center gap-3">
+          <Trash2 class="size-4 text-destructive" />
+          <span class="text-sm font-medium">Session deleted</span>
+        </div>
+        <button
+          class="flex items-center gap-1 rounded-lg bg-background/20 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-background/30"
+          @click="handleUndoDelete"
+        >
+          <Undo2 class="size-4" />
+          Undo
+        </button>
       </div>
     </div>
 
@@ -326,14 +484,10 @@ const activeSection = ref<'sessions' | 'settings' | null>(null)
       <div class="rounded-2xl border border-border/60 bg-card p-4">
         <div class="mb-4 flex items-center gap-2">
           <Bell class="size-5 text-muted-foreground" />
-          <h3 class="font-semibold">Reminders</h3>
+          <h3 class="font-semibold">Smart Reminders</h3>
         </div>
-        <div class="space-y-4">
-          <div class="space-y-2">
-            <Label class="text-sm">Reminder Time</Label>
-            <Input v-model="reminderTime" type="time" class="rounded-xl" />
-          </div>
 
+        <div class="space-y-4">
           <div class="rounded-xl bg-muted/50 p-3">
             <p class="text-xs text-muted-foreground">Permission</p>
             <p class="text-sm font-medium capitalize">
@@ -350,14 +504,106 @@ const activeSection = ref<'sessions' | 'settings' | null>(null)
             >
               Allow Notifications
             </Button>
-            <Button
-              v-if="notificationSupported && notificationPermission === 'granted'"
-              variant="outline"
-              class="rounded-xl"
-              @click="reminderEnabled = !reminderEnabled"
-            >
-              {{ reminderEnabled ? 'Disable' : 'Enable' }} Reminders
-            </Button>
+          </div>
+
+          <div v-if="notificationSupported && notificationPermission === 'granted'" class="space-y-3">
+            <!-- Basic Goal Reminder -->
+            <div class="flex items-center justify-between rounded-xl bg-muted/30 p-3">
+              <div>
+                <p class="text-sm font-medium">Goal Check</p>
+                <p class="text-xs text-muted-foreground">Remind about remaining sleep</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <input
+                  v-model="reminderTime"
+                  type="time"
+                  class="rounded-lg border border-border bg-background px-2 py-1 text-sm"
+                />
+                <button
+                  class="rounded-lg px-3 py-1 text-sm font-medium transition-colors"
+                  :class="reminderEnabled ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
+                  @click="reminderEnabled = !reminderEnabled"
+                >
+                  {{ reminderEnabled ? 'On' : 'Off' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Bedtime Reminder -->
+            <div class="flex items-center justify-between rounded-xl bg-muted/30 p-3">
+              <div>
+                <p class="text-sm font-medium">Bedtime</p>
+                <p class="text-xs text-muted-foreground">Alert at your target bedtime</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <input
+                  v-model="bedtimeReminderTime"
+                  type="time"
+                  class="rounded-lg border border-border bg-background px-2 py-1 text-sm"
+                />
+                <button
+                  class="rounded-lg px-3 py-1 text-sm font-medium transition-colors"
+                  :class="bedtimeReminderEnabled ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
+                  @click="bedtimeReminderEnabled = !bedtimeReminderEnabled"
+                >
+                  {{ bedtimeReminderEnabled ? 'On' : 'Off' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Wind-down Reminder -->
+            <div class="flex items-center justify-between rounded-xl bg-muted/30 p-3">
+              <div>
+                <p class="text-sm font-medium">Wind-down</p>
+                <p class="text-xs text-muted-foreground">
+                  {{ windDownMinutes }} min before bedtime
+                </p>
+              </div>
+              <button
+                class="rounded-lg px-3 py-1 text-sm font-medium transition-colors"
+                :class="windDownReminderEnabled ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
+                @click="windDownReminderEnabled = !windDownReminderEnabled"
+              >
+                {{ windDownReminderEnabled ? 'On' : 'Off' }}
+              </button>
+            </div>
+
+            <!-- Goal Nudge -->
+            <div class="flex items-center justify-between rounded-xl bg-muted/30 p-3">
+              <div>
+                <p class="text-sm font-medium">Evening Nudge</p>
+                <p class="text-xs text-muted-foreground">Plan bedtime for remaining sleep</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <input
+                  v-model="goalNudgeTime"
+                  type="time"
+                  class="rounded-lg border border-border bg-background px-2 py-1 text-sm"
+                />
+                <button
+                  class="rounded-lg px-3 py-1 text-sm font-medium transition-colors"
+                  :class="goalNudgeReminderEnabled ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
+                  @click="goalNudgeReminderEnabled = !goalNudgeReminderEnabled"
+                >
+                  {{ goalNudgeReminderEnabled ? 'On' : 'Off' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Missed Goal Follow-up -->
+            <div class="flex items-center justify-between rounded-xl bg-muted/30 p-3">
+              <div>
+                <p class="text-sm font-medium">Recovery Reminder</p>
+                <p class="text-xs text-muted-foreground">Morning alert after missed goal</p>
+              </div>
+              <button
+                class="rounded-lg px-3 py-1 text-sm font-medium transition-colors"
+                :class="missedGoalReminderEnabled ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
+                @click="missedGoalReminderEnabled = !missedGoalReminderEnabled"
+              >
+                {{ missedGoalReminderEnabled ? 'On' : 'Off' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -366,18 +612,25 @@ const activeSection = ref<'sessions' | 'settings' | null>(null)
       <div class="rounded-2xl border border-border/60 bg-card p-4">
         <div class="mb-4 flex items-center gap-2">
           <Download class="size-5 text-muted-foreground" />
-          <h3 class="font-semibold">Backup</h3>
+          <h3 class="font-semibold">Backup & Export</h3>
         </div>
         <div class="space-y-3">
           <Button variant="outline" class="w-full rounded-xl" @click="handleExport">
             <Upload class="mr-2 size-4" />
-            Export Backup
+            Export JSON Backup
           </Button>
           <Button variant="outline" class="w-full rounded-xl" @click="importInput?.click()">
             <Download class="mr-2 size-4" />
-            Import Backup
+            Import JSON Backup
           </Button>
           <input ref="importInput" type="file" accept="application/json" class="hidden" @change="handleImport">
+
+          <div class="my-3 border-t border-border/40" />
+
+          <Button variant="outline" class="w-full rounded-xl" @click="handleCSVExport">
+            <Download class="mr-2 size-4" />
+            Export CSV
+          </Button>
 
           <p v-if="backupMessage" class="rounded-xl bg-primary/10 px-3 py-2 text-xs text-primary">
             {{ backupMessage }}
