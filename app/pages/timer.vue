@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { MoonStar, Play, Square, X, Plus, ChevronRight, Save, Trash2, Clock, Sparkles, Zap, Moon, Sunrise } from 'lucide-vue-next'
-import { getQualityLabel, type SessionTemplate, calculateOptimalWakeTimes, getRecommendedWakeTime, type OptimalWakeTime } from '@/lib/sleep'
+import { MoonStar, Play, Square, X, Plus, ChevronRight, Save, Trash2, Clock, Sparkles, Zap, Moon, Sunrise, AlarmClock, Bell, Volume2, Brain } from 'lucide-vue-next'
+import { getQualityLabel, type SessionTemplate, calculateOptimalWakeTimes, getRecommendedWakeTime, type OptimalWakeTime, type AlarmType } from '@/lib/sleep'
 import { useSleepData } from '@/composables/useSleepData'
 import { toDateTimeLocalValue, SLEEP_TAGS, getQualityEmoji } from '@/lib/sleep'
 import { useHaptics } from '@/composables/useHaptics'
@@ -14,6 +14,18 @@ const {
   activeSessionStart,
   activeSessionMinutes,
   templates,
+  alarmConfig,
+  isAlarmFiring,
+  alarmFiringType,
+  smartAlarmWakeTime,
+  dismissAlarm,
+  snoozeAlarm,
+  setAlarmEnabled,
+  setAlarmTime,
+  setAlarmType,
+  notificationSupported,
+  notificationPermission,
+  requestNotificationPermission,
   startSleepNow,
   stopSleepNow,
   cancelActiveSleep,
@@ -210,9 +222,151 @@ function stopAtOptimalWakeTime(wakeTime: OptimalWakeTime) {
     haptics.light()
   }
 }
+
+// Alarm audio playback
+const alarmAudio = ref<HTMLAudioElement | null>(null)
+const alarmIntervalId = ref<ReturnType<typeof setInterval> | null>(null)
+
+function playAlarmSound() {
+  if (!alarmAudio.value) {
+    // Generate alarm sound using Web Audio API as fallback
+    alarmAudio.value = new Audio('/alarm.mp3')
+    alarmAudio.value.loop = true
+    alarmAudio.value.volume = 0.8
+  }
+  alarmAudio.value.play().catch(() => {
+    // If audio file not available, use Web Audio API
+    playWebAudioAlarm()
+  })
+}
+
+function stopAlarmSound() {
+  if (alarmAudio.value) {
+    alarmAudio.value.pause()
+    alarmAudio.value.currentTime = 0
+  }
+  if (alarmIntervalId.value) {
+    clearInterval(alarmIntervalId.value)
+    alarmIntervalId.value = null
+  }
+  stopWebAudioAlarm()
+}
+
+// Web Audio API fallback for alarm sound
+let audioCtx: AudioContext | null = null
+let webAudioOscillator: OscillatorNode | null = null
+let webAudioLoop: ReturnType<typeof setInterval> | null = null
+
+function playWebAudioAlarm() {
+  if (!audioCtx) audioCtx = new AudioContext()
+  let isOn = true
+  webAudioLoop = setInterval(() => {
+    if (!isOn) return
+    const osc = audioCtx!.createOscillator()
+    const gain = audioCtx!.createGain()
+    osc.connect(gain)
+    gain.connect(audioCtx!.destination)
+    osc.frequency.value = 880
+    osc.type = 'sine'
+    gain.gain.value = 0.3
+    osc.start()
+    osc.stop(audioCtx!.currentTime + 0.3)
+  }, 500)
+}
+
+function stopWebAudioAlarm() {
+  if (webAudioLoop) {
+    clearInterval(webAudioLoop)
+    webAudioLoop = null
+  }
+  if (webAudioOscillator) {
+    webAudioOscillator.stop()
+    webAudioOscillator = null
+  }
+}
+
+// Watch alarm firing state to play/stop sound
+watch(isAlarmFiring, (firing) => {
+  if (firing && (alarmConfig.value.type === 'sound' || alarmConfig.value.type === 'smart') && alarmConfig.value.soundEnabled) {
+    playAlarmSound()
+  } else {
+    stopAlarmSound()
+  }
+})
+
+function handleDismissAlarm() {
+  stopAlarmSound()
+  dismissAlarm()
+  haptics.light()
+}
+
+function handleSnoozeAlarm() {
+  stopAlarmSound()
+  snoozeAlarm()
+  haptics.light()
+}
+
+// Alarm type labels
+const alarmTypeOptions: { value: AlarmType, label: string, icon: any, description: string }[] = [
+  { value: 'sound', label: 'Sound', icon: Volume2, description: 'Plays audio + notification' },
+  { value: 'notification', label: 'Notify', icon: Bell, description: 'Browser notification only' },
+  { value: 'smart', label: 'Smart', icon: Brain, description: 'Wakes at optimal cycle time' },
+]
+
+const showAlarmSettings = ref(false)
 </script>
 
 <template>
+  <!-- Alarm Firing Overlay -->
+  <Transition name="alarm-overlay">
+    <div
+      v-if="isAlarmFiring"
+      class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm"
+    >
+      <div class="flex flex-col items-center gap-6 px-6">
+        <!-- Animated alarm icon -->
+        <div class="relative">
+          <div class="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+          <div class="relative flex size-24 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
+            <AlarmClock class="size-12" />
+          </div>
+        </div>
+
+        <div class="text-center">
+          <h2 class="text-2xl font-bold">
+            {{ alarmFiringType === 'smart' ? 'Smart Alarm' : 'Wake Up!' }}
+          </h2>
+          <p class="mt-1 text-sm text-muted-foreground">
+            {{ alarmFiringType === 'smart' && smartAlarmWakeTime ? smartAlarmWakeTime.label : `It's ${alarmConfig.time}` }}
+          </p>
+          <p v-if="alarmConfig.snoozeCount > 0" class="mt-0.5 text-xs text-muted-foreground/70">
+            Snoozed {{ alarmConfig.snoozeCount }} time{{ alarmConfig.snoozeCount > 1 ? 's' : '' }}
+          </p>
+        </div>
+
+        <div class="flex w-full max-w-xs gap-3">
+          <Button
+            variant="outline"
+            class="flex-1 rounded-2xl py-5"
+            size="lg"
+            @click="handleSnoozeAlarm"
+          >
+            <Moon class="mr-2 size-5" />
+            Snooze
+          </Button>
+          <Button
+            class="flex-1 rounded-2xl py-5"
+            size="lg"
+            @click="handleDismissAlarm"
+          >
+            <Sunrise class="mr-2 size-5" />
+            Dismiss
+          </Button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
   <div class="min-h-screen p-4 pb-24">
     <!-- Header -->
     <header class="mb-6 flex items-center justify-between">
@@ -221,6 +375,11 @@ function stopAtOptimalWakeTime(wakeTime: OptimalWakeTime) {
           <MoonStar class="size-5" />
         </div>
         <span class="text-lg font-semibold">Sleep Timer</span>
+      </div>
+      <!-- Alarm indicator in header -->
+      <div v-if="alarmConfig.enabled" class="flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1">
+        <AlarmClock class="size-3.5 text-primary" />
+        <span class="text-xs font-medium text-primary">{{ alarmConfig.time }}</span>
       </div>
     </header>
 
@@ -344,6 +503,170 @@ function stopAtOptimalWakeTime(wakeTime: OptimalWakeTime) {
       <p v-if="errorMessage" class="mt-3 text-sm text-destructive">
         {{ errorMessage }}
       </p>
+    </div>
+
+    <!-- Alarm Settings -->
+    <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <div class="mb-4 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="flex size-8 items-center justify-center rounded-lg bg-primary/10">
+            <AlarmClock class="size-4 text-primary" />
+          </div>
+          <h2 class="text-base font-semibold">Wake-up Alarm</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="rounded-lg text-xs"
+            @click="showAlarmSettings = !showAlarmSettings"
+          >
+            {{ showAlarmSettings ? 'Done' : 'Settings' }}
+          </Button>
+          <!-- Toggle switch -->
+          <button
+            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors"
+            :class="alarmConfig.enabled ? 'bg-primary' : 'bg-secondary'"
+            @click="setAlarmEnabled(!alarmConfig.enabled)"
+          >
+            <span
+              class="inline-block size-4 rounded-full bg-white shadow-sm transition-transform"
+              :class="alarmConfig.enabled ? 'translate-x-6' : 'translate-x-1'"
+            />
+          </button>
+        </div>
+      </div>
+
+      <!-- Alarm enabled status -->
+      <div v-if="alarmConfig.enabled && !showAlarmSettings" class="flex items-center gap-3">
+        <div class="flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2">
+          <component :is="alarmTypeOptions.find(o => o.value === alarmConfig.type)?.icon" class="size-4 text-primary" />
+          <span class="text-sm font-semibold text-primary">{{ alarmConfig.time }}</span>
+        </div>
+        <span class="text-xs text-muted-foreground">
+          {{ alarmTypeOptions.find(o => o.value === alarmConfig.type)?.description }}
+        </span>
+      </div>
+
+      <!-- Smart alarm info when sleeping -->
+      <div
+        v-if="alarmConfig.enabled && alarmConfig.type === 'smart' && activeSessionStart && smartAlarmWakeTime && !showAlarmSettings"
+        class="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3"
+      >
+        <div class="flex items-center gap-1.5">
+          <Brain class="size-3.5 text-primary" />
+          <span class="text-xs font-medium text-primary">Smart wake at {{ smartAlarmWakeTime.label }}</span>
+        </div>
+        <p class="mt-1 text-[10px] text-muted-foreground">
+          Within {{ alarmConfig.smartWindowMinutes }}min window before {{ alarmConfig.time }}
+        </p>
+      </div>
+
+      <!-- Notification permission prompt -->
+      <div
+        v-if="alarmConfig.enabled && notificationSupported && notificationPermission !== 'granted' && showAlarmSettings"
+        class="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3"
+      >
+        <p class="text-xs text-amber-600 dark:text-amber-400">
+          Notifications are not allowed. Grant permission for alarm notifications.
+        </p>
+        <Button variant="outline" size="sm" class="mt-2 rounded-lg text-xs" @click="requestNotificationPermission">
+          <Bell class="mr-1 size-3" />
+          Allow Notifications
+        </Button>
+      </div>
+
+      <!-- Expanded alarm settings -->
+      <div v-if="showAlarmSettings" class="space-y-4">
+        <!-- Alarm time -->
+        <div class="space-y-1.5">
+          <label class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Alarm Time</label>
+          <Input
+            type="time"
+            :model-value="alarmConfig.time"
+            class="rounded-xl bg-secondary/40"
+            @update:model-value="setAlarmTime(String($event))"
+          />
+        </div>
+
+        <!-- Alarm type -->
+        <div class="space-y-1.5">
+          <label class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Alarm Type</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              v-for="option in alarmTypeOptions"
+              :key="option.value"
+              class="flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-all"
+              :class="alarmConfig.type === option.value ? 'border-primary bg-primary/10 text-primary' : 'border-border/40 bg-muted/20 text-muted-foreground hover:bg-muted/40'"
+              @click="setAlarmType(option.value)"
+            >
+              <component :is="option.icon" class="size-5" />
+              <span class="text-xs font-medium">{{ option.label }}</span>
+              <span class="text-[9px] text-center leading-tight opacity-70">{{ option.description }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sound toggle (for sound and smart types) -->
+        <div v-if="alarmConfig.type !== 'notification'" class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium">Sound</p>
+            <p class="text-xs text-muted-foreground">Play audio when alarm fires</p>
+          </div>
+          <button
+            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors"
+            :class="alarmConfig.soundEnabled ? 'bg-primary' : 'bg-secondary'"
+            @click="alarmConfig.soundEnabled = !alarmConfig.soundEnabled"
+          >
+            <span
+              class="inline-block size-4 rounded-full bg-white shadow-sm transition-transform"
+              :class="alarmConfig.soundEnabled ? 'translate-x-6' : 'translate-x-1'"
+            />
+          </button>
+        </div>
+
+        <!-- Smart alarm window -->
+        <div v-if="alarmConfig.type === 'smart'" class="space-y-1.5">
+          <label class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Smart Window</label>
+          <div class="flex items-center gap-2">
+            <Input
+              :model-value="alarmConfig.smartWindowMinutes"
+              type="number"
+              min="10"
+              max="120"
+              class="rounded-xl bg-secondary/40"
+              @update:model-value="alarmConfig.smartWindowMinutes = Number($event) || 30"
+            />
+            <span class="text-xs text-muted-foreground whitespace-nowrap">minutes before alarm</span>
+          </div>
+          <p class="text-[10px] text-muted-foreground">
+            Alarm will find the optimal sleep cycle wake time within this window before your set alarm time.
+          </p>
+        </div>
+
+        <!-- Snooze duration -->
+        <div class="space-y-1.5">
+          <label class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Snooze Duration</label>
+          <div class="flex items-center gap-2">
+            <Input
+              :model-value="alarmConfig.snoozeMinutes"
+              type="number"
+              min="1"
+              max="30"
+              class="rounded-xl bg-secondary/40"
+              @update:model-value="alarmConfig.snoozeMinutes = Number($event) || 5"
+            />
+            <span class="text-xs text-muted-foreground whitespace-nowrap">minutes</span>
+          </div>
+        </div>
+
+        <!-- Limitations notice -->
+        <div class="rounded-xl border border-border/30 bg-muted/20 p-3">
+          <p class="text-[10px] text-muted-foreground leading-relaxed">
+            <strong>Note:</strong> This is a web-based alarm. It works while the app is open in your browser. For reliable background alarms, keep the tab active. Sound may not play when the browser is minimized or the screen is locked.
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Today's Progress -->
@@ -591,3 +914,17 @@ function stopAtOptimalWakeTime(wakeTime: OptimalWakeTime) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.alarm-overlay-enter-active {
+  transition: all 0.3s ease-out;
+}
+.alarm-overlay-leave-active {
+  transition: all 0.2s ease-in;
+}
+.alarm-overlay-enter-from,
+.alarm-overlay-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+</style>

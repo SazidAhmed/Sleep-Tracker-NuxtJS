@@ -29,6 +29,7 @@ import {
   generateAutoBackup,
   checkInterruptedSession,
   validateAndRepairData,
+  calculateSmartAlarmTime,
   type SleepSession,
   type SleepSettings,
   type SessionTemplate,
@@ -38,6 +39,8 @@ import {
   type PeriodComparison,
   type BedtimeTrend,
   type TagEffectiveness,
+  type AlarmConfig,
+  type AlarmType,
 } from '@/lib/sleep'
 
 export function useSleepData() {
@@ -60,6 +63,21 @@ export function useSleepData() {
   const missedGoalReminderEnabled = useLocalStorage<boolean>('sleep-tracker-missed-goal-enabled', false)
   const lastMissedGoalDate = useLocalStorage<string>('sleep-tracker-last-missed-goal-date', '')
   const activeSessionStart = useLocalStorage<string | null>('sleep-tracker-active-session-start', null)
+
+  // Alarm state
+  const alarmConfig = useLocalStorage<AlarmConfig>('sleep-tracker-alarm-config', {
+    enabled: false,
+    time: '06:00',
+    type: 'sound',
+    soundEnabled: true,
+    smartWindowMinutes: 30,
+    snoozeMinutes: 5,
+    snoozeCount: 0,
+    lastTriggeredDate: '',
+    lastSnoozedAt: null,
+  })
+  const isAlarmFiring = ref(false)
+  const alarmFiringType = ref<AlarmType | null>(null)
 
   const now = ref(new Date())
   const interval = ref<ReturnType<typeof setInterval> | null>(null)
@@ -465,14 +483,127 @@ export function useSleepData() {
     analyzeTagEffectiveness(normalizedSessions.value),
   )
 
+  // Alarm logic
+  const smartAlarmWakeTime = computed(() => {
+    if (!activeSessionStart.value || alarmConfig.value.type !== 'smart') return null
+    return calculateSmartAlarmTime(
+      new Date(activeSessionStart.value),
+      alarmConfig.value.time,
+      alarmConfig.value.smartWindowMinutes,
+    )
+  })
+
+  function checkAlarm() {
+    if (!alarmConfig.value.enabled) return
+
+    const currentTime = now.value
+    const currentKey = todayKey.value
+
+    // Don't re-trigger if already fired today (unless snoozed)
+    if (alarmConfig.value.lastTriggeredDate === currentKey && !alarmConfig.value.lastSnoozedAt) return
+
+    // Check if snooze period is still active
+    if (alarmConfig.value.lastSnoozedAt) {
+      const snoozeEnd = new Date(alarmConfig.value.lastSnoozedAt).getTime() + alarmConfig.value.snoozeMinutes * 60 * 1000
+      if (currentTime.getTime() < snoozeEnd) return // still in snooze
+      // Snooze period ended, re-trigger
+    }
+
+    const [alarmHours, alarmMins] = alarmConfig.value.time.split(':').map(Number)
+    const alarmAt = new Date(currentTime)
+    alarmAt.setHours(alarmHours || 0, alarmMins || 0, 0, 0)
+
+    let shouldFire = false
+    let firingType: AlarmType = alarmConfig.value.type
+
+    if (alarmConfig.value.type === 'smart' && activeSessionStart.value) {
+      // Smart alarm: check if we've reached the optimal wake time within the window
+      const smartWake = smartAlarmWakeTime.value
+      if (smartWake) {
+        const smartWakeTime = new Date(smartWake.wakeTime).getTime()
+        const windowEnd = alarmAt.getTime()
+        const nowMs = currentTime.getTime()
+        if (nowMs >= smartWakeTime && nowMs <= windowEnd) {
+          shouldFire = true
+          firingType = 'smart'
+        }
+      }
+      // Also fire at the exact alarm time as fallback
+      if (!shouldFire && currentTime.getTime() >= alarmAt.getTime() && currentTime.getTime() < alarmAt.getTime() + 60 * 1000) {
+        shouldFire = true
+        firingType = 'smart'
+      }
+    } else {
+      // Sound or notification alarm: fire at the set time
+      if (currentTime.getTime() >= alarmAt.getTime() && currentTime.getTime() < alarmAt.getTime() + 60 * 1000) {
+        shouldFire = true
+      }
+    }
+
+    if (!shouldFire) return
+
+    // Fire the alarm
+    alarmConfig.value.lastTriggeredDate = currentKey
+    alarmConfig.value.lastSnoozedAt = null
+    isAlarmFiring.value = true
+    alarmFiringType.value = firingType
+
+    // Send notification for all types
+    if (notificationSupported.value && Notification.permission === 'granted') {
+      const label = firingType === 'smart' ? 'Smart Alarm' : 'Wake-up Alarm'
+      const body = firingType === 'smart' && smartAlarmWakeTime.value
+        ? `Optimal wake time reached! ${smartAlarmWakeTime.value.label}`
+        : `It's ${alarmConfig.value.time}. Time to wake up!`
+      new Notification(label, { body })
+    }
+  }
+
+  function dismissAlarm() {
+    isAlarmFiring.value = false
+    alarmFiringType.value = null
+    alarmConfig.value.lastSnoozedAt = null
+    alarmConfig.value.snoozeCount = 0
+  }
+
+  function snoozeAlarm() {
+    alarmConfig.value.lastSnoozedAt = new Date().toISOString()
+    alarmConfig.value.snoozeCount++
+    isAlarmFiring.value = false
+    alarmFiringType.value = null
+  }
+
+  function setAlarmEnabled(enabled: boolean) {
+    alarmConfig.value.enabled = enabled
+    if (!enabled) {
+      isAlarmFiring.value = false
+      alarmFiringType.value = null
+      alarmConfig.value.lastSnoozedAt = null
+      alarmConfig.value.snoozeCount = 0
+    }
+  }
+
+  function setAlarmTime(time: string) {
+    alarmConfig.value.time = time
+    alarmConfig.value.lastTriggeredDate = '' // reset so new time can trigger
+    alarmConfig.value.lastSnoozedAt = null
+  }
+
+  function setAlarmType(type: AlarmType) {
+    alarmConfig.value.type = type
+    alarmConfig.value.lastTriggeredDate = ''
+    alarmConfig.value.lastSnoozedAt = null
+  }
+
   // Lifecycle
   onMounted(() => {
     if (notificationSupported.value) notificationPermission.value = Notification.permission
     interval.value = setInterval(() => {
       now.value = new Date()
       maybeSendReminder()
+      checkAlarm()
     }, 60 * 1000)
     maybeSendReminder()
+    checkAlarm()
     maybeAutoBackup()
 
     // Check for interrupted session on mount
@@ -499,6 +630,15 @@ export function useSleepData() {
     missedGoalReminderEnabled,
     lastMissedGoalDate,
     activeSessionStart,
+    alarmConfig,
+    isAlarmFiring,
+    alarmFiringType,
+    smartAlarmWakeTime,
+    dismissAlarm,
+    snoozeAlarm,
+    setAlarmEnabled,
+    setAlarmTime,
+    setAlarmType,
     now,
     todayKey,
     todaySummary,

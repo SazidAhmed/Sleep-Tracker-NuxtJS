@@ -22,6 +22,20 @@ export interface SleepSettings {
   anchorTime: string
 }
 
+export type AlarmType = 'sound' | 'notification' | 'smart'
+
+export interface AlarmConfig {
+  enabled: boolean
+  time: string // HH:mm format
+  type: AlarmType
+  soundEnabled: boolean
+  smartWindowMinutes: number // window before alarm to find optimal wake
+  snoozeMinutes: number
+  snoozeCount: number // how many times snoozed
+  lastTriggeredDate: string // prevent re-triggering same alarm
+  lastSnoozedAt: string | null // ISO timestamp of last snooze
+}
+
 export interface DailySleepSummary {
   date: string
   minutes: number
@@ -972,6 +986,36 @@ export function analyzeTagEffectiveness(sessions: SleepSession[]): TagEffectiven
       }
     })
     .sort((a, b) => b.avgQuality - a.avgQuality)
+}
+
+// Smart Alarm: Find optimal wake time within a window before the set alarm
+export function calculateSmartAlarmTime(
+  sleepStartTime: Date,
+  alarmTime: string, // HH:mm
+  windowMinutes: number,
+): OptimalWakeTime | null {
+  const [alarmHours, alarmMins] = alarmTime.split(':').map(Number)
+  const alarmDate = new Date(sleepStartTime)
+  alarmDate.setHours(alarmHours || 0, alarmMins || 0, 0, 0)
+
+  // If alarm time is before sleep start, it must be the next day
+  if (alarmDate.getTime() <= sleepStartTime.getTime()) {
+    alarmDate.setDate(alarmDate.getDate() + 1)
+  }
+
+  const windowStart = new Date(alarmDate.getTime() - windowMinutes * 60 * 1000)
+  const optimalTimes = calculateOptimalWakeTimes(sleepStartTime)
+
+  // Find the optimal wake time that falls within the smart window
+  const withinWindow = optimalTimes.filter(wt => {
+    const wakeDate = new Date(wt.wakeTime)
+    return wakeDate.getTime() >= windowStart.getTime() && wakeDate.getTime() <= alarmDate.getTime()
+  })
+
+  if (withinWindow.length === 0) return null
+
+  // Prefer the one closest to the alarm time (latest within window)
+  return withinWindow[withinWindow.length - 1] ?? null
 }
 
 // Auto Backup Function
