@@ -2,8 +2,6 @@
 import { MoreHorizontal, Search, Settings, Bell, Download, Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Clock, Copy, Undo2 } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
 import { toDateTimeLocalValue, type SleepSession, SLEEP_TAGS, getQualityEmoji, getQualityLabel } from '@/lib/sleep'
-import { useSwipeToDelete } from '@/composables/useSwipe'
-import { defineComponent } from 'vue'
 
 definePageMeta({
   layout: 'mobile',
@@ -86,7 +84,10 @@ const filteredSessions = computed(() => {
         cutoff.setDate(1)
         break
     }
-    result = result.filter(s => new Date(s.start) >= cutoff)
+    result = result.filter(s => {
+      const startDate = new Date(s.start)
+      return !isNaN(startDate.getTime()) && startDate >= cutoff
+    })
   }
 
   // Text search
@@ -187,40 +188,6 @@ async function handleImport(event: Event) {
 
 // Active section
 const activeSection = ref<'sessions' | 'settings' | null>(null)
-
-// Swipeable session item component
-const SwipeableSessionItem = defineComponent({
-  props: {
-    session: {
-      type: Object as () => SleepSession,
-      required: true,
-    },
-  },
-  setup(props) {
-    const itemRef = ref<HTMLElement | null>(null)
-    const { translateX } = useSwipeToDelete(itemRef, () => {
-      removeSession(props.session.id)
-    })
-
-    return { itemRef, translateX }
-  },
-  template: `
-    <div class="relative overflow-hidden rounded-2xl">
-      <!-- Delete background -->
-      <div class="absolute inset-0 flex items-center justify-end bg-red-500 pr-4">
-        <Trash2 class="size-5 text-white" />
-      </div>
-      <!-- Content -->
-      <div
-        ref="itemRef"
-        class="relative bg-card transition-transform duration-200"
-        :style="{ transform: \`translateX(\${translateX}px)\` }"
-      >
-        <slot />
-      </div>
-    </div>
-  `,
-})
 </script>
 
 <template>
@@ -312,7 +279,7 @@ const SwipeableSessionItem = defineComponent({
             variant="outline"
             size="sm"
             class="shrink-0 rounded-full"
-            :class="dateFilter === option.value ? 'bg-primary text-primary-foreground' : ''"
+            :class="dateFilter === option.value ? '!bg-primary !text-primary-foreground border-primary' : ''"
             @click="dateFilter = option.value as any"
           >
             {{ option.label }}
@@ -322,10 +289,16 @@ const SwipeableSessionItem = defineComponent({
 
       <!-- Session List -->
       <div class="space-y-3">
-        <SwipeableSessionItem
+        <!-- Reset filters button -->
+        <div v-if="filteredSessions.length === 0 && sessions.length > 0" class="flex justify-center">
+          <Button variant="outline" size="sm" @click="dateFilter = 'all'; searchQuery = ''">
+            Reset Filters
+          </Button>
+        </div>
+
+        <div
           v-for="session in filteredSessions"
           :key="session.id"
-          :session="session"
           class="rounded-2xl border border-border/60 bg-card p-4"
         >
           <div v-if="editingSession?.id === session.id" class="space-y-3">
@@ -413,7 +386,7 @@ const SwipeableSessionItem = defineComponent({
               </Button>
             </div>
           </div>
-        </SwipeableSessionItem>
+        </div>
 
         <p v-if="duplicateMessage" class="py-2 text-center text-sm text-primary">
           {{ duplicateMessage }}
