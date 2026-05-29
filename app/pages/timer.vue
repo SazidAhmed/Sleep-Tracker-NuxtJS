@@ -223,55 +223,54 @@ function stopAtOptimalWakeTime(wakeTime: OptimalWakeTime) {
   }
 }
 
-// Alarm audio playback
-const alarmAudio = ref<HTMLAudioElement | null>(null)
+// Alarm audio — fully Web Audio API based (no external file dependency)
 const alarmIntervalId = ref<ReturnType<typeof setInterval> | null>(null)
 
+let audioCtx: AudioContext | null = null
+
 function playAlarmSound() {
-  if (!alarmAudio.value) {
-    // Generate alarm sound using Web Audio API as fallback
-    alarmAudio.value = new Audio('/alarm.mp3')
-    alarmAudio.value.loop = true
-    alarmAudio.value.volume = 0.8
-  }
-  alarmAudio.value.play().catch(() => {
-    // If audio file not available, use Web Audio API
-    playWebAudioAlarm()
-  })
+  // Always use Web Audio API — no missing file risk
+  playWebAudioAlarm()
 }
 
 function stopAlarmSound() {
-  if (alarmAudio.value) {
-    alarmAudio.value.pause()
-    alarmAudio.value.currentTime = 0
-  }
-  if (alarmIntervalId.value) {
-    clearInterval(alarmIntervalId.value)
-    alarmIntervalId.value = null
-  }
   stopWebAudioAlarm()
 }
 
-// Web Audio API fallback for alarm sound
-let audioCtx: AudioContext | null = null
-let webAudioOscillator: OscillatorNode | null = null
+// Improved Web Audio alarm: alternating 880Hz / 660Hz beeps with smooth fade
 let webAudioLoop: ReturnType<typeof setInterval> | null = null
+let beepPhase = 0
 
 function playWebAudioAlarm() {
-  if (!audioCtx) audioCtx = new AudioContext()
-  let isOn = true
-  webAudioLoop = setInterval(() => {
-    if (!isOn) return
-    const osc = audioCtx!.createOscillator()
-    const gain = audioCtx!.createGain()
+  if (webAudioLoop) return // already playing
+  if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+
+  function scheduleBeep() {
+    if (!audioCtx) return
+    const freq = beepPhase % 2 === 0 ? 880 : 660
+    beepPhase++
+
+    const osc = audioCtx.createOscillator()
+    const gain = audioCtx.createGain()
     osc.connect(gain)
-    gain.connect(audioCtx!.destination)
-    osc.frequency.value = 880
+    gain.connect(audioCtx.destination)
+
     osc.type = 'sine'
-    gain.gain.value = 0.3
-    osc.start()
-    osc.stop(audioCtx!.currentTime + 0.3)
-  }, 500)
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime)
+
+    // Smooth envelope: fade in over 20ms, sustain, fade out over 60ms
+    const start = audioCtx.currentTime
+    gain.gain.setValueAtTime(0, start)
+    gain.gain.linearRampToValueAtTime(0.4, start + 0.02)
+    gain.gain.setValueAtTime(0.4, start + 0.25)
+    gain.gain.linearRampToValueAtTime(0, start + 0.32)
+
+    osc.start(start)
+    osc.stop(start + 0.35)
+  }
+
+  scheduleBeep()
+  webAudioLoop = setInterval(scheduleBeep, 450)
 }
 
 function stopWebAudioAlarm() {
@@ -279,10 +278,7 @@ function stopWebAudioAlarm() {
     clearInterval(webAudioLoop)
     webAudioLoop = null
   }
-  if (webAudioOscillator) {
-    webAudioOscillator.stop()
-    webAudioOscillator = null
-  }
+  beepPhase = 0
 }
 
 // Watch alarm firing state to play/stop sound

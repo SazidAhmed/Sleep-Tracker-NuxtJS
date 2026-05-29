@@ -33,6 +33,41 @@ const progressColor = computed(() => {
   return 'bg-primary/40'
 })
 
+// ── Goal Celebration Confetti ────────────────────────────────
+const showCelebration = ref(false)
+const confettiParticles = ref<Array<{ id: number, emoji: string, x: number, delay: number, duration: number }>>([])
+const CONFETTI_EMOJIS = ['🌙', '⭐', '✨', '💫', '🎉', '🌟', '😴', '🏆']
+
+let celebrationTimeout: ReturnType<typeof setTimeout> | null = null
+let wasGoalCompleted = false
+
+watch(isGoalCompleted, (completed) => {
+  if (completed && !wasGoalCompleted) {
+    triggerCelebration()
+  }
+  wasGoalCompleted = completed
+})
+
+function triggerCelebration() {
+  if (celebrationTimeout) clearTimeout(celebrationTimeout)
+  confettiParticles.value = Array.from({ length: 18 }, (_, i) => ({
+    id: i,
+    emoji: CONFETTI_EMOJIS[Math.floor(Math.random() * CONFETTI_EMOJIS.length)]!,
+    x: 5 + (i / 17) * 90, // spread across 5-95% width
+    delay: Math.random() * 0.4,
+    duration: 1.2 + Math.random() * 0.8,
+  }))
+  showCelebration.value = true
+  celebrationTimeout = setTimeout(() => {
+    showCelebration.value = false
+    confettiParticles.value = []
+  }, 2500)
+}
+
+onBeforeUnmount(() => {
+  if (celebrationTimeout) clearTimeout(celebrationTimeout)
+})
+
 // Quick Actions
 const showQuickActions = ref(false)
 const quickActionArea = ref<HTMLElement | null>(null)
@@ -44,6 +79,7 @@ const { canInstall, promptInstall, dismiss } = usePwaInstall()
 const showOnboarding = ref(false)
 
 onMounted(() => {
+  wasGoalCompleted = isGoalCompleted.value
   // Check if user has completed onboarding
   const onboardingComplete = localStorage.getItem('sleep-tracker-onboarding-complete')
   if (!onboardingComplete) {
@@ -74,9 +110,26 @@ function quickStartTimer() {
 </script>
 
 <template>
-  <div ref="quickActionArea" class="min-h-screen p-4 pb-24">
+  <div ref="quickActionArea" class="relative min-h-screen p-4 pb-24">
+    <!-- Goal Celebration Confetti Overlay -->
+    <Teleport to="body">
+      <div v-if="showCelebration" class="pointer-events-none fixed inset-0 z-[100] overflow-hidden">
+        <span
+          v-for="p in confettiParticles"
+          :key="p.id"
+          class="confetti-particle absolute top-0 select-none text-2xl"
+          :style="{
+            left: `${p.x}%`,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+          }"
+        >{{ p.emoji }}</span>
+      </div>
+    </Teleport>
+
     <!-- Onboarding Modal -->
     <OnboardingModal v-model="showOnboarding" />
+
 
     <!-- PWA Install Banner -->
     <div

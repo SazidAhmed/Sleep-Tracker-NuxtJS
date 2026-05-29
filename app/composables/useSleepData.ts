@@ -53,7 +53,11 @@ export function useSleepData() {
   const templates = useLocalStorage<SessionTemplate[]>('sleep-tracker-templates', [])
   const reminderEnabled = useLocalStorage<boolean>('sleep-tracker-reminder-enabled', false)
   const reminderTime = useLocalStorage<string>('sleep-tracker-reminder-time', '21:00')
+  // Each reminder type has its own last-fired key to prevent one from blocking others
   const lastReminderDate = useLocalStorage<string>('sleep-tracker-last-reminder-date', '')
+  const lastBedtimeReminderDate = useLocalStorage<string>('sleep-tracker-last-bedtime-reminder-date', '')
+  const lastWindDownReminderDate = useLocalStorage<string>('sleep-tracker-last-winddown-reminder-date', '')
+  const lastGoalNudgeDate = useLocalStorage<string>('sleep-tracker-last-goal-nudge-date', '')
   const bedtimeReminderEnabled = useLocalStorage<boolean>('sleep-tracker-bedtime-reminder-enabled', false)
   const bedtimeReminderTime = useLocalStorage<string>('sleep-tracker-bedtime-reminder-time', '22:00')
   const windDownReminderEnabled = useLocalStorage<boolean>('sleep-tracker-winddown-reminder-enabled', false)
@@ -301,7 +305,7 @@ export function useSleepData() {
     const currentTime = now.value.getTime()
     const currentKey = todayKey.value
 
-    // Basic reminder - sleep goal check
+    // Basic reminder - sleep goal check (own key: lastReminderDate)
     if (reminderEnabled.value && todaySummary.value.remainingMinutes > 0) {
       const [hours, minutes] = reminderTime.value.split(':').map(Number)
       const reminderAt = new Date(now.value)
@@ -316,52 +320,51 @@ export function useSleepData() {
       }
     }
 
-    // Bedtime reminder
+    // Bedtime reminder (own key: lastBedtimeReminderDate)
     if (bedtimeReminderEnabled.value) {
       const [hours, minutes] = bedtimeReminderTime.value.split(':').map(Number)
       const bedtimeAt = new Date(now.value)
       bedtimeAt.setHours(hours || 0, minutes || 0, 0, 0)
-      const bedtimeKey = `bedtime-${currentKey}`
 
-      if (currentTime >= bedtimeAt.getTime() && lastReminderDate.value !== bedtimeKey) {
+      if (currentTime >= bedtimeAt.getTime() && lastBedtimeReminderDate.value !== currentKey) {
         new Notification('Bedtime reminder', {
           body: `It's ${bedtimeReminderTime.value}. Time to start winding down for sleep.`,
         })
-        // Don't mark as reminded - we'll let other reminders work separately
+        lastBedtimeReminderDate.value = currentKey
       }
     }
 
-    // Wind-down reminder (before bedtime)
+    // Wind-down reminder (own key: lastWindDownReminderDate)
     if (windDownReminderEnabled.value && bedtimeReminderEnabled.value) {
       const [hours, minutes] = bedtimeReminderTime.value.split(':').map(Number)
       const bedtimeAt = new Date(now.value)
       bedtimeAt.setHours(hours || 0, minutes || 0, 0, 0)
       const windDownAt = new Date(bedtimeAt.getTime() - windDownMinutes.value * 60 * 1000)
-      const windDownKey = `winddown-${currentKey}`
 
-      if (currentTime >= windDownAt.getTime() && currentTime < bedtimeAt.getTime() && lastReminderDate.value !== windDownKey) {
+      if (currentTime >= windDownAt.getTime() && currentTime < bedtimeAt.getTime() && lastWindDownReminderDate.value !== currentKey) {
         new Notification('Wind-down time', {
           body: `${windDownMinutes.value} minutes until bedtime. Start your evening routine.`,
         })
+        lastWindDownReminderDate.value = currentKey
       }
     }
 
-    // Goal nudge (evening reminder about remaining sleep)
+    // Goal nudge — evening reminder about remaining sleep (own key: lastGoalNudgeDate)
     if (goalNudgeReminderEnabled.value && todaySummary.value.remainingMinutes > 0) {
       const [hours, minutes] = goalNudgeTime.value.split(':').map(Number)
       const nudgeAt = new Date(now.value)
       nudgeAt.setHours(hours || 0, minutes || 0, 0, 0)
-      const nudgeKey = `nudge-${currentKey}`
 
-      if (currentTime >= nudgeAt.getTime() && lastReminderDate.value !== nudgeKey) {
+      if (currentTime >= nudgeAt.getTime() && lastGoalNudgeDate.value !== currentKey) {
         const remaining = formatDurationFromMinutes(todaySummary.value.remainingMinutes)
         new Notification('Evening sleep check', {
           body: `You need ${remaining} more sleep today. Plan your bedtime accordingly.`,
         })
+        lastGoalNudgeDate.value = currentKey
       }
     }
 
-    // Missed goal follow-up (next morning)
+    // Missed goal follow-up — next morning (own key: lastMissedGoalDate)
     if (missedGoalReminderEnabled.value) {
       const yesterday = addDays(currentKey, -1)
       const yesterdaySummary = summarizeSleepDay(yesterday, normalizedSessions.value, settings.value.dailyGoalHours)

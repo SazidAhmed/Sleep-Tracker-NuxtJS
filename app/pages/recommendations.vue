@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Sparkles, AlertCircle, Clock, Target, Briefcase, Zap, ChevronRight, X } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
+import { useLocalStorage } from '@vueuse/core'
 
 definePageMeta({
   layout: 'mobile',
@@ -11,6 +12,14 @@ const {
 } = useSleepData()
 
 const router = useRouter()
+
+// Persist dismissed recommendation IDs in localStorage
+const dismissedIds = useLocalStorage<string[]>('sleep-tracker-dismissed-recommendations', [])
+
+// Filter out dismissed recommendations
+const visibleRecommendations = computed(() =>
+  recommendations.value.filter(rec => !dismissedIds.value.includes(rec.id)),
+)
 
 const typeIcons: Record<string, any> = {
   optimal_time: Clock,
@@ -43,8 +52,13 @@ function handleAction(path?: string) {
 }
 
 function dismissRecommendation(id: string) {
-  // Could implement local storage to track dismissed recommendations
-  // For now, just a placeholder
+  if (!dismissedIds.value.includes(id)) {
+    dismissedIds.value = [...dismissedIds.value, id]
+  }
+}
+
+function restoreAllDismissed() {
+  dismissedIds.value = []
 }
 </script>
 
@@ -61,9 +75,17 @@ function dismissRecommendation(id: string) {
           <p class="text-xs text-muted-foreground">AI-powered sleep insights</p>
         </div>
       </div>
+      <!-- Restore dismissed button -->
+      <button
+        v-if="dismissedIds.length > 0"
+        class="rounded-full bg-muted/60 px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        @click="restoreAllDismissed"
+      >
+        Restore {{ dismissedIds.length }}
+      </button>
     </header>
 
-    <!-- Empty State -->
+    <!-- Empty State: no recommendations at all -->
     <div v-if="recommendations.length === 0" class="rounded-3xl border border-border/60 bg-card p-8 text-center shadow-sm">
       <div class="mb-3 flex justify-center">
         <div class="flex size-16 items-center justify-center rounded-full bg-primary/10">
@@ -76,54 +98,87 @@ function dismissRecommendation(id: string) {
       </p>
     </div>
 
+    <!-- All dismissed state -->
+    <div
+      v-else-if="visibleRecommendations.length === 0"
+      class="rounded-3xl border border-border/60 bg-card p-8 text-center shadow-sm"
+    >
+      <div class="mb-3 flex justify-center">
+        <div class="flex size-16 items-center justify-center rounded-full bg-muted/50">
+          <X class="size-8 text-muted-foreground" />
+        </div>
+      </div>
+      <h3 class="mb-1 text-lg font-semibold">All Dismissed</h3>
+      <p class="mb-4 text-sm text-muted-foreground">
+        You've dismissed all current recommendations.
+      </p>
+      <button
+        class="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        @click="restoreAllDismissed"
+      >
+        Restore All
+      </button>
+    </div>
+
     <!-- Recommendations List -->
     <div v-else class="space-y-3">
       <p class="text-xs text-muted-foreground">
-        {{ recommendations.length }} recommendation{{ recommendations.length === 1 ? '' : 's' }} based on your sleep data
+        {{ visibleRecommendations.length }} recommendation{{ visibleRecommendations.length === 1 ? '' : 's' }} based on your sleep data
       </p>
 
-      <div
-        v-for="rec in recommendations"
-        :key="rec.id"
-        class="group relative rounded-2xl bg-card p-4 shadow-sm transition-all"
-        :class="priorityColors[rec.priority]"
-      >
-        <div class="flex items-start gap-3">
-          <!-- Icon -->
-          <div
-            class="flex size-10 shrink-0 items-center justify-center rounded-xl"
-            :class="typeColors[rec.type]"
-          >
-            <component :is="typeIcons[rec.type]" class="size-5" />
-          </div>
-
-          <!-- Content -->
-          <div class="flex-1 min-w-0">
-            <div class="mb-1 flex items-center gap-2">
-              <h3 class="font-semibold">{{ rec.title }}</h3>
-              <span
-                class="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase"
-                :class="rec.priority === 'high' ? 'bg-red-100 text-red-600' : rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' : 'bg-blue-100 text-blue-600'"
-              >
-                {{ rec.priority }}
-              </span>
-            </div>
-            <p class="text-sm text-muted-foreground">
-              {{ rec.description }}
-            </p>
-
-            <!-- Action Button -->
-            <button
-              v-if="rec.action && rec.actionPath"
-              class="mt-3 flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary/80"
-              @click="handleAction(rec.actionPath)"
+      <TransitionGroup name="rec-list" tag="div" class="space-y-3">
+        <div
+          v-for="rec in visibleRecommendations"
+          :key="rec.id"
+          class="group relative rounded-2xl bg-card p-4 shadow-sm transition-all"
+          :class="priorityColors[rec.priority]"
+        >
+          <div class="flex items-start gap-3">
+            <!-- Icon -->
+            <div
+              class="flex size-10 shrink-0 items-center justify-center rounded-xl"
+              :class="typeColors[rec.type]"
             >
-              {{ rec.action }}
-              <ChevronRight class="size-4" />
+              <component :is="typeIcons[rec.type]" class="size-5" />
+            </div>
+
+            <!-- Content -->
+            <div class="min-w-0 flex-1">
+              <div class="mb-1 flex items-center gap-2">
+                <h3 class="font-semibold">{{ rec.title }}</h3>
+                <span
+                  class="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase"
+                  :class="rec.priority === 'high' ? 'bg-red-100 text-red-600' : rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' : 'bg-blue-100 text-blue-600'"
+                >
+                  {{ rec.priority }}
+                </span>
+              </div>
+              <p class="text-sm text-muted-foreground">
+                {{ rec.description }}
+              </p>
+
+              <!-- Action Button -->
+              <button
+                v-if="rec.action && rec.actionPath"
+                class="mt-3 flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary/80"
+                @click="handleAction(rec.actionPath)"
+              >
+                {{ rec.action }}
+                <ChevronRight class="size-4" />
+              </button>
+            </div>
+
+            <!-- Dismiss Button -->
+            <button
+              class="shrink-0 rounded-full p-1 text-muted-foreground/50 transition-all hover:bg-muted hover:text-muted-foreground"
+              :aria-label="`Dismiss ${rec.title} recommendation`"
+              @click="dismissRecommendation(rec.id)"
+            >
+              <X class="size-4" />
             </button>
           </div>
         </div>
-      </div>
+      </TransitionGroup>
     </div>
 
     <!-- Info Card -->
@@ -146,3 +201,25 @@ function dismissRecommendation(id: string) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.rec-list-enter-active {
+  transition: all 0.25s ease;
+}
+.rec-list-leave-active {
+  transition: all 0.2s ease;
+}
+.rec-list-enter-from {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.rec-list-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+  max-height: 0;
+}
+.rec-list-move {
+  transition: transform 0.2s ease;
+}
+</style>
+

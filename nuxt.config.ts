@@ -17,6 +17,12 @@ export default defineNuxtConfig({
     preference: 'system',
     fallback: 'light',
   },
+  router: {
+    // Exclude service worker and workbox paths from Vue Router matching
+    options: {
+      strict: false,
+    },
+  },
   shadcn: {
     prefix: '',
     componentDir: './app/components/ui',
@@ -37,6 +43,29 @@ export default defineNuxtConfig({
           sizes: '512x512',
           type: 'image/png',
           purpose: 'any maskable',
+        },
+      ],
+      shortcuts: [
+        {
+          name: 'Start Sleep Timer',
+          short_name: 'Timer',
+          description: 'Start tracking your sleep immediately',
+          url: '/timer',
+          icons: [{ src: '/icon-512x512.png', sizes: '512x512', type: 'image/png' }],
+        },
+        {
+          name: 'View History',
+          short_name: 'History',
+          description: 'See your sleep history and stats',
+          url: '/history',
+          icons: [{ src: '/icon-512x512.png', sizes: '512x512', type: 'image/png' }],
+        },
+        {
+          name: 'Today\'s Summary',
+          short_name: 'Today',
+          description: 'Check today\'s sleep progress',
+          url: '/',
+          icons: [{ src: '/icon-512x512.png', sizes: '512x512', type: 'image/png' }],
         },
       ],
     },

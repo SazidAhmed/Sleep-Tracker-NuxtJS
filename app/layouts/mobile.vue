@@ -15,6 +15,11 @@ const tabs = [
   { name: 'More', path: '/more', icon: MoreHorizontal },
 ]
 
+// Track tab index for directional slide transitions
+const tabPaths = tabs.map(t => t.path)
+const previousTabIndex = ref(tabPaths.indexOf(route.path))
+const transitionName = ref('page-slide-left')
+
 const activeTab = computed(() => {
   const currentPath = route.path
   return tabs.find(tab => tab.path === currentPath)?.name ?? 'Today'
@@ -27,6 +32,11 @@ function toggleDark() {
 }
 
 function navigateTo(path: string) {
+  const nextIndex = tabPaths.indexOf(path)
+  const currentIndex = tabPaths.indexOf(route.path)
+  // Determine slide direction based on tab position
+  transitionName.value = nextIndex >= currentIndex ? 'page-slide-left' : 'page-slide-right'
+  previousTabIndex.value = nextIndex
   router.push(path)
 }
 
@@ -38,9 +48,11 @@ useSeoMeta({
 
 <template>
   <div class="min-h-screen bg-background pb-20">
-    <!-- Main Content -->
+    <!-- Main Content with page transition -->
     <main class="mx-auto w-full max-w-md">
-      <slot />
+      <Transition :name="transitionName" mode="out-in">
+        <slot :key="route.path" />
+      </Transition>
     </main>
 
     <!-- Bottom Navigation -->
@@ -104,5 +116,33 @@ useSeoMeta({
   .h-safe-area-inset-bottom {
     height: env(safe-area-inset-bottom, 16px);
   }
+}
+
+/* ── Page Slide Transitions ─────────────────────────────── */
+.page-slide-left-enter-active,
+.page-slide-left-leave-active,
+.page-slide-right-enter-active,
+.page-slide-right-leave-active {
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Slide left: next tab is to the right */
+.page-slide-left-enter-from {
+  opacity: 0;
+  transform: translateX(24px);
+}
+.page-slide-left-leave-to {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+
+/* Slide right: next tab is to the left */
+.page-slide-right-enter-from {
+  opacity: 0;
+  transform: translateX(-24px);
+}
+.page-slide-right-leave-to {
+  opacity: 0;
+  transform: translateX(24px);
 }
 </style>
