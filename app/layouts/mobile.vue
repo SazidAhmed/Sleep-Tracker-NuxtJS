@@ -74,11 +74,19 @@ useSeoMeta({
           class="flex flex-col items-center justify-center gap-0.5 px-2 py-2 text-muted-foreground transition-all duration-200 hover:text-foreground"
           @click="toggleDark"
         >
-          <div class="flex size-8 items-center justify-center rounded-xl">
-            <Moon v-if="!isDark" class="size-5" />
-            <SunMedium v-else class="size-5" />
-          </div>
-          <span class="text-[10px] font-medium">{{ isDark ? 'Light' : 'Dark' }}</span>
+          <ClientOnly>
+            <div class="flex size-8 items-center justify-center rounded-xl">
+              <Moon v-if="!isDark" class="size-5" />
+              <SunMedium v-else class="size-5" />
+            </div>
+            <span class="text-[10px] font-medium">{{ isDark ? 'Light' : 'Dark' }}</span>
+            <template #fallback>
+              <div class="flex size-8 items-center justify-center rounded-xl">
+                <Moon class="size-5" />
+              </div>
+              <span class="text-[10px] font-medium">Dark</span>
+            </template>
+          </ClientOnly>
         </button>
       </div>
       <!-- Safe area padding for notched devices -->
