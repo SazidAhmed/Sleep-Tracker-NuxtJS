@@ -17,11 +17,22 @@ const {
   averageSleepMinutes,
   currentStreak,
   recommendations,
+  sleepScore,
   formatDurationFromMinutes,
   formatDateLabel,
   formatTimeLabel,
   getSessionDurationMinutes,
 } = useSleepData()
+
+function getGradeBadgeClass(grade: string) {
+  switch (grade) {
+    case 'A': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+    case 'B': return 'bg-teal-500/10 text-teal-500 border-teal-500/20'
+    case 'C': return 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+    case 'D': return 'bg-orange-500/10 text-orange-500 border-orange-500/20'
+    default: return 'bg-red-500/10 text-red-500 border-red-500/20'
+  }
+}
 
 const progressWidth = computed(() => `${Math.min(todaySummary.value.percentage, 100)}%`)
 const isGoalCompleted = computed(() => todaySummary.value.remainingMinutes === 0)
@@ -224,6 +235,51 @@ function quickStartTimer() {
         {{ formatDateLabel(todaySummary.date).split(',')[0] }}
       </div>
     </header>
+
+    <!-- Sleep Score Hero Card -->
+    <div class="mb-4 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <!-- Circular / Badge style grade and score -->
+          <div class="relative flex size-14 items-center justify-center rounded-2xl bg-secondary/80 font-bold text-xl shadow-inner border border-border/50">
+            <span>{{ sleepScore.score }}</span>
+            <div class="absolute -bottom-1 -right-1 flex size-6 items-center justify-center rounded-lg border-2 border-card font-bold text-xs" :class="getGradeBadgeClass(sleepScore.grade)">
+              {{ sleepScore.grade }}
+            </div>
+          </div>
+          <div>
+            <p class="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Sleep Health Score</p>
+            <h3 class="text-base font-bold text-foreground flex items-center gap-1.5">
+              {{ sleepScore.label }}
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full" :class="getGradeBadgeClass(sleepScore.grade)">
+                Grade {{ sleepScore.grade }}
+              </span>
+            </h3>
+            <p class="text-xs text-muted-foreground">Weighted sleep quality, quantity & routine</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Score Breakdown Accordion / Expansion -->
+      <div class="mt-4 grid grid-cols-4 gap-2 border-t border-border/40 pt-4 text-center">
+        <div class="rounded-xl bg-secondary/20 py-2 border border-border/30">
+          <p class="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Duration</p>
+          <p class="text-xs font-bold mt-0.5">{{ sleepScore.breakdown.duration }}<span class="text-[10px] font-normal text-muted-foreground">/50</span></p>
+        </div>
+        <div class="rounded-xl bg-secondary/20 py-2 border border-border/30">
+          <p class="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Consistency</p>
+          <p class="text-xs font-bold mt-0.5">{{ sleepScore.breakdown.consistency }}<span class="text-[10px] font-normal text-muted-foreground">/20</span></p>
+        </div>
+        <div class="rounded-xl bg-secondary/20 py-2 border border-border/30">
+          <p class="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Quality</p>
+          <p class="text-xs font-bold mt-0.5">{{ sleepScore.breakdown.quality }}<span class="text-[10px] font-normal text-muted-foreground">/20</span></p>
+        </div>
+        <div class="rounded-xl bg-secondary/20 py-2 border border-border/30">
+          <p class="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Debt-Free</p>
+          <p class="text-xs font-bold mt-0.5">{{ sleepScore.breakdown.debtFree }}<span class="text-[10px] font-normal text-muted-foreground">/10</span></p>
+        </div>
+      </div>
+    </div>
 
     <!-- Daily Progress Card -->
     <div class="mb-4 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">

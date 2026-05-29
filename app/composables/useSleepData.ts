@@ -30,6 +30,7 @@ import {
   checkInterruptedSession,
   validateAndRepairData,
   calculateSmartAlarmTime,
+  calculateSleepScore,
   type SleepSession,
   type SleepSettings,
   type SessionTemplate,
@@ -41,6 +42,7 @@ import {
   type TagEffectiveness,
   type AlarmConfig,
   type AlarmType,
+  type SleepScore,
 } from '@/lib/sleep'
 
 export function useSleepData() {
@@ -486,6 +488,10 @@ export function useSleepData() {
     analyzeTagEffectiveness(normalizedSessions.value),
   )
 
+  const sleepScore = computed(() =>
+    calculateSleepScore(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours),
+  )
+
   // Alarm logic
   const smartAlarmWakeTime = computed(() => {
     if (!activeSessionStart.value || alarmConfig.value.type !== 'smart') return null
@@ -682,6 +688,7 @@ export function useSleepData() {
     periodComparison,
     bedtimeTrend,
     tagEffectiveness,
+    sleepScore,
     interruptedSession,
     formatDurationFromMinutes,
     formatDateLabel,

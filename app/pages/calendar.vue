@@ -44,6 +44,14 @@ useSwipe(calendarContainer, {
   onSwipeLeft: goToNextMonth,
   onSwipeRight: goToPreviousMonth,
 })
+
+const selectedDate = ref<string | null>(null)
+const isBottomSheetOpen = ref(false)
+
+function handleDayClick(date: string) {
+  selectedDate.value = date
+  isBottomSheetOpen.value = true
+}
 </script>
 
 <template>
@@ -105,11 +113,12 @@ useSwipe(calendarContainer, {
         <div
           v-for="day in monthCalendar.days"
           :key="day.date"
-          class="relative overflow-hidden rounded-xl pb-1 pt-2"
+          class="relative overflow-hidden rounded-xl pb-1 pt-2 cursor-pointer hover:bg-secondary/40 active:scale-95 transition-all select-none"
           :class="[
             day.inCurrentMonth ? 'bg-background' : 'bg-muted/20',
             day.isToday ? 'ring-2 ring-primary ring-offset-1 ring-offset-card' : '',
           ]"
+          @click="handleDayClick(day.date)"
         >
           <!-- Day number -->
           <div class="flex flex-col items-center">
@@ -157,5 +166,8 @@ useSwipe(calendarContainer, {
         <span>Today</span>
       </div>
     </div>
+
+    <!-- Day Details Drawer -->
+    <DayDetailBottomSheet v-model="isBottomSheetOpen" :date="selectedDate" />
   </div>
 </template>

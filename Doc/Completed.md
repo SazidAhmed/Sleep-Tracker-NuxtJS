@@ -80,3 +80,52 @@ When daily sleep goal reaches 100% for the first time (not on page load if alrea
 - Rendered via `<Teleport to="body">` so it overlays everything including the nav bar
 - Auto-clears after 2.5 seconds
 - CSS `confetti-fall` keyframe animation with rotation and fade-out
+
+---
+
+## Batch 2 — Advanced Analytics & UX Improvements
+**Date:** 2026-05-29
+
+### ✅ #15 — Sleep Score / Grade
+**Files:** `app/lib/sleep.ts`, `app/composables/useSleepData.ts`, `app/pages/index.vue`
+
+Implemented a composite, science-backed **Sleep Health Score (0–100)** to give users a single at-a-glance health indicator on the home page.
+
+**Details:**
+1. **Weighted Algorithm** (`app/lib/sleep.ts`):
+   - **Duration (50%):** Proportional score based on daily sleep goal progress.
+   - **Consistency (20%):** Calculated based on standard deviation of bedtimes over the last 7 tracked days.
+   - **Quality (20%):** Calculated based on average sleep quality rating over the last 7 days.
+   - **Debt-free (10%):** Rewards having low accumulated sleep debt relative to weekly goals.
+2. **Grade System:**
+   - **A (Excellent):** Score $\ge 90$ (Emerald theme)
+   - **B (Good):** Score $\ge 75$ (Teal theme)
+   - **C (Fair):** Score $\ge 55$ (Amber theme)
+   - **D (Poor):** Score $\ge 35$ (Orange theme)
+   - **F (Critical):** Score $< 35$ (Red theme)
+3. **Hero Dashboard Widget (`app/pages/index.vue`):**
+   - Prominently displays the score as the hero metric with a dynamic letter-grade badge.
+   - Beautiful grid layout showcasing the breakdown for each category (Duration, Consistency, Quality, Debt-Free).
+   - Designed to perfectly blend with the existing dark/light UI aesthetic.
+
+---
+
+### ✅ #4 — Bottom Sheet for Session Details
+**Files:** `app/components/DayDetailBottomSheet.vue`, `app/pages/calendar.vue`, `app/pages/heatmap.vue`
+
+Tapping any day in the Calendar or Heatmap now opens a high-end custom bottom sheet/drawer, detailing all sleep sessions, ratings, tags, and dream/sleep notes for that specific day.
+
+**Details:**
+1. **Reusable Drawer Component (`app/components/DayDetailBottomSheet.vue`):**
+   - Implements native-app-like slide-up animations using Vue `<Transition>` and spring easing curves.
+   - Designed with custom glassmorphism styles, dark backdrop blur (`bg-black/60 backdrop-blur-sm`), and a pull-to-dismiss visual bar handle.
+   - Provides a comprehensive breakdown for the selected day:
+     - **Performance Summary Stats:** Total sleep logged, goal completion progress bar, average rating emoji + status label, and goal-met checkmark or missing-duration alert.
+     - **Detailed Sessions Timeline:** Lists start/end times, calculated session duration, quality score, tags (rendered as micro-capsules), and notes (styled as a blockquote with a document icon).
+     - **Polished Empty State:** Shows a friendly moon illustration if no sleep sessions were tracked on that day.
+2. **Interactive Calendar Cells (`app/pages/calendar.vue`):**
+   - Added hover effects, hand cursor triggers (`cursor-pointer`), and active scale-down press micro-interactions (`active:scale-95 transition-all`) to all calendar day blocks.
+   - Handled `@click` triggers to open the detail drawer.
+3. **Interactive Heatmap Blocks (`app/pages/heatmap.vue`):**
+   - Transformed static heatmap day squares into fully clickable buttons with zoom/lift transitions (`hover:scale-110 active:scale-90 transition-all`).
+   - Bound click handlers to open the details modal with a single tap.

@@ -111,6 +111,14 @@ function nextYear() {
     selectedYear.value++
   }
 }
+
+const selectedDate = ref<string | null>(null)
+const isBottomSheetOpen = ref(false)
+
+function handleDayClick(date: string) {
+  selectedDate.value = date
+  isBottomSheetOpen.value = true
+}
 </script>
 
 <template>
@@ -184,8 +192,12 @@ function nextYear() {
           <div
             v-for="(day, index) in yearData"
             :key="day.date"
-            class="group relative aspect-square rounded-sm"
-            :class="getHeatColor(day)"
+            class="group relative aspect-square rounded-sm select-none"
+            :class="[
+              getHeatColor(day),
+              day.isCurrentYear ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:scale-110 active:scale-90 transition-all z-10' : 'pointer-events-none'
+            ]"
+            @click="day.isCurrentYear && handleDayClick(day.date)"
           >
             <div
               v-if="day.isToday"
@@ -194,7 +206,7 @@ function nextYear() {
             <!-- Tooltip -->
             <div
               v-if="day.isCurrentYear"
-              class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover:block"
+              class="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md group-hover:block"
             >
               {{ getTooltipText(day) }}
             </div>
@@ -223,5 +235,8 @@ function nextYear() {
         Today
       </span>
     </div>
+
+    <!-- Day Details Drawer -->
+    <DayDetailBottomSheet v-model="isBottomSheetOpen" :date="selectedDate" />
   </div>
 </template>

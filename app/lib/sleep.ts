@@ -1111,3 +1111,89 @@ export function validateAndRepairData(
     errors,
   }
 }
+
+// ============================================================================
+// SLEEP SCORE — Composite health metric (0–100)
+// ============================================================================
+
+export interface SleepScore {
+  score: number           // 0–100
+  grade: 'A' | 'B' | 'C' | 'D' | 'F'
+  label: string           // e.g. "Excellent", "Good", "Fair", "Poor", "Critical"
+  breakdown: {
+    duration: number      // 0–50 pts — % of goal met today
+    consistency: number   // 0–20 pts — bedtime regularity last 7 days
+    quality: number       // 0–20 pts — average quality rating
+    debtFree: number      // 0–10 pts — low sleep debt
+  }
+}
+
+export function calculateSleepScore(
+  today: string,
+  sessions: SleepSession[],
+  goalHours: number,
+): SleepScore {
+  // ── 1. Duration (50 pts max) ──────────────────────────────
+  const todaySummary = summarizeSleepDay(today, sessions, goalHours)
+  const durationScore = Math.round((todaySummary.percentage / 100) * 50)
+
+  // ── 2. Consistency (20 pts max) ───────────────────────────
+  // Std dev of bedtimes over the last 7 tracked days (lower = better)
+  const last7 = buildRecentHistory(today, sessions, goalHours, 7)
+  const trackedLast7 = last7.filter(d => d.minutes > 0 && d.sessions.length > 0)
+
+  let consistencyScore = 0
+  if (trackedLast7.length >= 2) {
+    const bedtimeMinutes = trackedLast7.map(day => {
+      const first = day.sessions.sort((a, b) => a.start.localeCompare(b.start))[0]
+      if (!first) return null
+      const d = new Date(first.start)
+      return d.getHours() * 60 + d.getMinutes()
+    }).filter((v): v is number => v !== null)
+
+    const avg = bedtimeMinutes.reduce((a, b) => a + b, 0) / bedtimeMinutes.length
+    const variance = bedtimeMinutes.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / bedtimeMinutes.length
+    const stdDev = Math.sqrt(variance)
+    // stdDev < 15min → full score, >120min → 0
+    consistencyScore = Math.round(Math.max(0, Math.min(20, 20 * (1 - stdDev / 120))))
+  }
+
+  // ── 3. Quality (20 pts max) ───────────────────────────────
+  const recentQuality = sessions
+    .filter(s => {
+      const d = s.start.slice(0, 10)
+      return d >= addDays(today, -7) && s.quality
+    })
+    .map(s => s.quality as number)
+
+  const qualityScore = recentQuality.length > 0
+    ? Math.round(((recentQuality.reduce((a, b) => a + b, 0) / recentQuality.length) / 5) * 20)
+    : 0
+
+  // ── 4. Debt-free (10 pts max) ─────────────────────────────
+  const debt = calculateSleepDebt(today, sessions, goalHours, 7)
+  const maxDebt = goalHours * 60 * 7 // maximum possible debt = 7 full missed nights
+  const debtFreeScore = Math.round(Math.max(0, 10 * (1 - debt.totalDebtMinutes / maxDebt)))
+
+  // ── Composite ─────────────────────────────────────────────
+  const total = Math.min(100, durationScore + consistencyScore + qualityScore + debtFreeScore)
+
+  let grade: SleepScore['grade'] = 'F'
+  let label = 'Critical'
+  if (total >= 90) { grade = 'A'; label = 'Excellent' }
+  else if (total >= 75) { grade = 'B'; label = 'Good' }
+  else if (total >= 55) { grade = 'C'; label = 'Fair' }
+  else if (total >= 35) { grade = 'D'; label = 'Poor' }
+
+  return {
+    score: total,
+    grade,
+    label,
+    breakdown: {
+      duration: durationScore,
+      consistency: consistencyScore,
+      quality: qualityScore,
+      debtFree: debtFreeScore,
+    },
+  }
+}
