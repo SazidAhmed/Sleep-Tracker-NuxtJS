@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { MoreHorizontal, Search, Settings, Bell, Download, Upload, Pencil, Trash2, ChevronLeft, Clock, Copy, Undo2, Tag, Plus, X, BookOpen, FileText, HeartPulse, Cloud, RefreshCw } from 'lucide-vue-next'
 import { useLocalStorage, useVirtualList } from '@vueuse/core'
+import type { ComponentPublicInstance } from 'vue'
 import { useSleepData } from '@/composables/useSleepData'
 import { useCloudSync } from '@/composables/useCloudSync'
 import { toDateTimeLocalValue, type SleepSession, getQualityEmoji, getQualityLabel } from '@/lib/sleep'
@@ -121,12 +122,67 @@ const filteredSessions = computed(() => {
 })
 
 const shouldVirtualizeSessions = computed(() => filteredSessions.value.length > 40)
+const sessionRowHeights = ref<Record<string, number>>({})
+const sessionHeightVersion = ref(0)
+const sessionRowElements = new Map<string, HTMLElement>()
+const sessionRowObservers = new Map<string, ResizeObserver>()
+const estimatedSessionRowHeight = computed(() => {
+  sessionHeightVersion.value
+  const heights = Object.values(sessionRowHeights.value).filter(height => height > 0)
+  if (!heights.length) return 180
+  return Math.ceil(heights.reduce((sum, height) => sum + height, 0) / heights.length)
+})
+
+function getVirtualSessionHeight(index: number) {
+  sessionHeightVersion.value
+  const session = filteredSessions.value[index]
+  if (!session) return estimatedSessionRowHeight.value
+  return sessionRowHeights.value[session.id] ?? estimatedSessionRowHeight.value
+}
+
+function rememberSessionRowHeight(sessionId: string, height: number) {
+  const nextHeight = Math.ceil(height)
+  if (!nextHeight || sessionRowHeights.value[sessionId] === nextHeight) return
+  sessionRowHeights.value = {
+    ...sessionRowHeights.value,
+    [sessionId]: nextHeight,
+  }
+  sessionHeightVersion.value++
+}
+
+function setSessionRowRef(element: Element | ComponentPublicInstance | null, sessionId: string) {
+  if (!import.meta.client) return
+  if (element === null) {
+    const observer = sessionRowObservers.get(sessionId)
+    if (observer) {
+      observer.disconnect()
+      sessionRowObservers.delete(sessionId)
+    }
+    sessionRowElements.delete(sessionId)
+    return
+  }
+  if (!(element instanceof HTMLElement)) return
+  if (sessionRowElements.get(sessionId) === element) return
+
+  sessionRowObservers.get(sessionId)?.disconnect()
+  sessionRowElements.set(sessionId, element)
+  rememberSessionRowHeight(sessionId, element.offsetHeight)
+
+  const observer = new ResizeObserver(([entry]) => {
+    if (!entry) return
+    const height = entry.borderBoxSize?.[0]?.blockSize ?? entry.target.getBoundingClientRect().height
+    rememberSessionRowHeight(sessionId, height)
+  })
+  observer.observe(element, { box: 'border-box' })
+  sessionRowObservers.set(sessionId, observer)
+}
+
 const {
   list: virtualSessionRows,
   containerProps: virtualContainerProps,
   wrapperProps: virtualWrapperProps,
 } = useVirtualList(filteredSessions, {
-  itemHeight: 180,
+  itemHeight: getVirtualSessionHeight,
   overscan: 8,
 })
 const visibleSessions = computed(() =>
@@ -134,6 +190,26 @@ const visibleSessions = computed(() =>
     ? virtualSessionRows.value.map(row => row.data)
     : filteredSessions.value,
 )
+
+// Clean up stored heights only when sessions are truly removed from data
+watch(sessions, (items) => {
+  const allIds = new Set(items.map(session => session.id))
+  let changed = false
+  for (const sessionId of Object.keys(sessionRowHeights.value)) {
+    if (!allIds.has(sessionId)) {
+      const { [sessionId]: _removed, ...rest } = sessionRowHeights.value
+      sessionRowHeights.value = rest
+      changed = true
+    }
+  }
+  if (changed) sessionHeightVersion.value++
+}, { deep: true })
+
+onBeforeUnmount(() => {
+  for (const observer of sessionRowObservers.values()) observer.disconnect()
+  sessionRowObservers.clear()
+  sessionRowElements.clear()
+})
 
 // Editing
 const editingSession = ref<SleepSession | null>(null)
@@ -489,7 +565,7 @@ function handleSelectableGroupKeydown(e: KeyboardEvent) {
           v-if="shouldVirtualizeSessions"
           class="rounded-xl bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
         >
-          Virtualized list enabled for {{ filteredSessions.length }} sessions.
+          Virtualized list enabled for {{ filteredSessions.length }} sessions. Average row {{ estimatedSessionRowHeight }}px.
         </div>
 
         <div
@@ -504,6 +580,7 @@ function handleSelectableGroupKeydown(e: KeyboardEvent) {
         <div
           v-for="session in visibleSessions"
           :key="session.id"
+          :ref="(element) => setSessionRowRef(element, session.id)"
           class="relative overflow-hidden rounded-2xl border border-border/60 bg-card"
           @touchstart="handleTouchStart($event, session.id)"
           @touchmove="handleTouchMove($event, session.id)"
