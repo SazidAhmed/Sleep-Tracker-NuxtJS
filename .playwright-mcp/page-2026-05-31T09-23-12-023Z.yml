@@ -1,0 +1,71 @@
+- generic [ref=e4]:
+  - main [ref=e5]:
+    - generic [ref=e7]:
+      - generic [ref=e9]:
+        - img [ref=e11]
+        - generic [ref=e15]:
+          - text: More
+          - paragraph [ref=e16]: Manage sessions & settings
+      - generic [ref=e17]:
+        - button "Session Log 0 sessions logged" [ref=e18]:
+          - img [ref=e20]
+          - generic [ref=e23]:
+            - paragraph [ref=e24]: Session Log
+            - paragraph [ref=e25]: 0 sessions logged
+          - img [ref=e26]
+        - button "Settings Goal, reminders, backup" [ref=e28]:
+          - img [ref=e30]
+          - generic [ref=e33]:
+            - paragraph [ref=e34]: Settings
+            - paragraph [ref=e35]: Goal, reminders, backup
+          - img [ref=e36]
+        - button "Dream Journal Search logs, track dreams & write entries" [ref=e38]:
+          - img [ref=e40]
+          - generic [ref=e42]:
+            - paragraph [ref=e43]: Dream Journal
+            - paragraph [ref=e44]: Search logs, track dreams & write entries
+          - img [ref=e45]
+        - button "Sleep Report Weekly and monthly summary" [ref=e47]:
+          - img [ref=e49]
+          - generic [ref=e52]:
+            - paragraph [ref=e53]: Sleep Report
+            - paragraph [ref=e54]: Weekly and monthly summary
+          - img [ref=e55]
+        - generic [ref=e57]:
+          - paragraph [ref=e58]: About
+          - paragraph [ref=e59]: Sleep Tracker
+          - paragraph [ref=e60]: Track split sleep sessions, daily goals, and recovery progress. All data is stored locally — no account required.
+          - generic [ref=e63]: Local-first · Offline ready · PWA installable
+  - navigation [ref=e64]:
+    - generic [ref=e65]:
+      - link "Timer" [ref=e66] [cursor=pointer]:
+        - /url: /timer
+        - img [ref=e68]
+        - generic [ref=e71]: Timer
+      - link "Today" [ref=e72] [cursor=pointer]:
+        - /url: /today
+        - img [ref=e74]
+        - generic [ref=e80]: Today
+      - link "History" [ref=e81] [cursor=pointer]:
+        - /url: /history
+        - img [ref=e83]
+        - generic [ref=e85]: History
+      - link "Heat" [ref=e86] [cursor=pointer]:
+        - /url: /heatmap
+        - img [ref=e88]
+        - generic [ref=e90]: Heat
+      - link "Tips" [ref=e91] [cursor=pointer]:
+        - /url: /recommendations
+        - img [ref=e93]
+        - generic [ref=e96]: Tips
+      - link "Calendar" [ref=e97] [cursor=pointer]:
+        - /url: /calendar
+        - img [ref=e99]
+        - generic [ref=e101]: Calendar
+      - link "More" [ref=e102] [cursor=pointer]:
+        - /url: /more
+        - img [ref=e104]
+        - generic [ref=e108]: More
+      - button "Dark" [ref=e109]:
+        - img [ref=e111]
+        - generic [ref=e113]: Dark

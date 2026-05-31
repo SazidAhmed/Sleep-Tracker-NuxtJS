@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { MoreHorizontal, Search, Settings, Bell, Download, Upload, Pencil, Trash2, ChevronLeft, ChevronRight, Clock, Copy, Undo2, Tag, Plus, X, BookOpen, FileText, HeartPulse } from 'lucide-vue-next'
-import { useLocalStorage } from '@vueuse/core'
+import { MoreHorizontal, Search, Settings, Bell, Download, Upload, Pencil, Trash2, ChevronLeft, Clock, Copy, Undo2, Tag, Plus, X, BookOpen, FileText, HeartPulse, Cloud, RefreshCw } from 'lucide-vue-next'
+import { useLocalStorage, useVirtualList } from '@vueuse/core'
 import { useSleepData } from '@/composables/useSleepData'
+import { useCloudSync } from '@/composables/useCloudSync'
 import { toDateTimeLocalValue, type SleepSession, getQualityEmoji, getQualityLabel } from '@/lib/sleep'
 
 definePageMeta({
@@ -42,6 +43,14 @@ const {
 const router = useRouter()
 const healthIntegrationEnabled = useLocalStorage<boolean>('sleep-tracker-health-integration-enabled', false)
 const healthExportPreference = useLocalStorage<'csv' | 'json'>('sleep-tracker-health-export-preference', 'csv')
+const {
+  config: cloudSync,
+  status: cloudSyncStatus,
+  error: cloudSyncError,
+  isConfigured: isCloudSyncConfigured,
+  syncAgeLabel,
+  syncNow,
+} = useCloudSync()
 
 // Undo functionality
 function handleUndoDelete() {
@@ -110,6 +119,21 @@ const filteredSessions = computed(() => {
 
   return result
 })
+
+const shouldVirtualizeSessions = computed(() => filteredSessions.value.length > 40)
+const {
+  list: virtualSessionRows,
+  containerProps: virtualContainerProps,
+  wrapperProps: virtualWrapperProps,
+} = useVirtualList(filteredSessions, {
+  itemHeight: 180,
+  overscan: 8,
+})
+const visibleSessions = computed(() =>
+  shouldVirtualizeSessions.value
+    ? virtualSessionRows.value.map(row => row.data)
+    : filteredSessions.value,
+)
 
 // Editing
 const editingSession = ref<SleepSession | null>(null)
@@ -195,6 +219,30 @@ async function handleImport(event: Event) {
   }
   finally {
     input.value = ''
+  }
+}
+
+const cloudSyncMessage = ref('')
+
+async function handleCloudPush() {
+  cloudSyncMessage.value = ''
+  const result = await syncNow('push', settings.value, sessions.value)
+  if (result.success) {
+    cloudSyncMessage.value = 'Local sleep data pushed to sync storage.'
+  }
+}
+
+async function handleCloudPull() {
+  cloudSyncMessage.value = ''
+  const result = await syncNow('pull', settings.value, sessions.value)
+  if (result.success && result.snapshot) {
+    const importResult = importBackup(result.snapshot, 'merge')
+    if (importResult.error) {
+      cloudSyncMessage.value = ''
+      cloudSyncError.value = importResult.error
+      return
+    }
+    cloudSyncMessage.value = `Pulled ${importResult.importedCount} new session${importResult.importedCount === 1 ? '' : 's'} from sync storage.`
   }
 }
 
@@ -344,61 +392,37 @@ function handleSelectableGroupKeydown(e: KeyboardEvent) {
 
     <!-- Menu Cards -->
     <div v-if="!activeSection" class="space-y-3">
-      <button
-        class="group flex w-full items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
-        @click="activeSection = 'sessions'"
-      >
-        <div class="flex size-12 items-center justify-center rounded-xl bg-primary/10 transition-colors group-hover:bg-primary/20">
-          <Clock class="size-6 text-primary" />
-        </div>
-        <div class="flex-1">
-          <p class="font-semibold">Session Log</p>
-          <p class="text-sm text-muted-foreground">{{ sessions.length }} session{{ sessions.length === 1 ? '' : 's' }} logged</p>
-        </div>
-        <ChevronRight class="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-      </button>
+      <MoreMenuCard
+        :icon="Clock"
+        title="Session Log"
+        :description="`${sessions.length} session${sessions.length === 1 ? '' : 's'} logged`"
+        icon-class="bg-primary/10 text-primary group-hover:bg-primary/20"
+        @select="activeSection = 'sessions'"
+      />
 
-      <button
-        class="group flex w-full items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
-        @click="activeSection = 'settings'"
-      >
-        <div class="flex size-12 items-center justify-center rounded-xl bg-secondary transition-colors group-hover:bg-primary/10">
-          <Settings class="size-6 transition-colors group-hover:text-primary" />
-        </div>
-        <div class="flex-1">
-          <p class="font-semibold">Settings</p>
-          <p class="text-sm text-muted-foreground">Goal, reminders, backup</p>
-        </div>
-        <ChevronRight class="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-      </button>
+      <MoreMenuCard
+        :icon="Settings"
+        title="Settings"
+        description="Goal, reminders, backup"
+        icon-class="group-hover:text-primary"
+        @select="activeSection = 'settings'"
+      />
 
-      <button
-        class="group flex w-full items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
-        @click="router.push('/journal')"
-      >
-        <div class="flex size-12 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-500 transition-colors group-hover:bg-indigo-500/20">
-          <BookOpen class="size-6" />
-        </div>
-        <div class="flex-1">
-          <p class="font-semibold">Dream Journal</p>
-          <p class="text-sm text-muted-foreground">Search logs, track dreams & write entries</p>
-        </div>
-        <ChevronRight class="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-      </button>
+      <MoreMenuCard
+        :icon="BookOpen"
+        title="Dream Journal"
+        description="Search logs, track dreams & write entries"
+        icon-class="bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-500/20"
+        @select="router.push('/journal')"
+      />
 
-      <button
-        class="group flex w-full items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left shadow-sm transition-all hover:border-primary/30 hover:shadow-md"
-        @click="router.push('/report')"
-      >
-        <div class="flex size-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 transition-colors group-hover:bg-emerald-500/20">
-          <FileText class="size-6" />
-        </div>
-        <div class="flex-1">
-          <p class="font-semibold">Sleep Report</p>
-          <p class="text-sm text-muted-foreground">Weekly and monthly summary</p>
-        </div>
-        <ChevronRight class="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-      </button>
+      <MoreMenuCard
+        :icon="FileText"
+        title="Sleep Report"
+        description="Weekly and monthly summary"
+        icon-class="bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500/20"
+        @select="router.push('/report')"
+      />
 
       <!-- App info -->
       <div class="mt-6 rounded-2xl border border-border/40 bg-muted/30 p-4">
@@ -462,7 +486,23 @@ function handleSelectableGroupKeydown(e: KeyboardEvent) {
         </div>
 
         <div
-          v-for="session in filteredSessions"
+          v-if="shouldVirtualizeSessions"
+          class="rounded-xl bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+        >
+          Virtualized list enabled for {{ filteredSessions.length }} sessions.
+        </div>
+
+        <div
+          v-bind="shouldVirtualizeSessions ? virtualContainerProps : {}"
+          :class="shouldVirtualizeSessions ? 'h-[70vh] overflow-y-auto pr-1' : ''"
+        >
+          <div
+            v-bind="shouldVirtualizeSessions ? virtualWrapperProps : {}"
+            class="space-y-3"
+          >
+
+        <div
+          v-for="session in visibleSessions"
           :key="session.id"
           class="relative overflow-hidden rounded-2xl border border-border/60 bg-card"
           @touchstart="handleTouchStart($event, session.id)"
@@ -586,6 +626,9 @@ function handleSelectableGroupKeydown(e: KeyboardEvent) {
                 </Button>
               </div>
             </div>
+          </div>
+        </div>
+
           </div>
         </div>
 
@@ -938,6 +981,124 @@ function handleSelectableGroupKeydown(e: KeyboardEvent) {
             <Download class="mr-2 size-4" />
             Export Health File
           </Button>
+        </div>
+      </div>
+
+      <!-- Cloud sync -->
+      <div class="rounded-2xl border border-border/60 bg-card p-4">
+        <div class="mb-4 flex items-center gap-2">
+          <Cloud class="size-5 text-muted-foreground" />
+          <h3 class="font-semibold">Cloud Sync</h3>
+        </div>
+
+        <div class="space-y-4">
+          <div class="flex items-center justify-between rounded-xl bg-secondary/20 p-3">
+            <div>
+              <p class="text-sm font-medium">Optional Sync</p>
+              <p class="text-xs text-muted-foreground">
+                {{ cloudSync.enabled ? syncAgeLabel : 'Local-only mode' }}
+              </p>
+            </div>
+            <button
+              class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors"
+              :class="cloudSync.enabled ? 'bg-primary' : 'bg-secondary'"
+              aria-label="Toggle optional cloud sync"
+              role="switch"
+              :aria-checked="cloudSync.enabled"
+              @click="cloudSync.enabled = !cloudSync.enabled"
+            >
+              <span
+                class="inline-block size-4 rounded-full bg-white shadow-sm transition-transform"
+                :class="cloudSync.enabled ? 'translate-x-6' : 'translate-x-1'"
+              />
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <Button
+              v-for="option in [
+                { value: 'local-vault', label: 'Local Vault' },
+                { value: 'custom-endpoint', label: 'Endpoint' },
+              ]"
+              :key="option.value"
+              variant="outline"
+              size="sm"
+              class="rounded-xl"
+              :class="cloudSync.provider === option.value ? '!bg-primary !text-primary-foreground border-primary' : ''"
+              @click="cloudSync.provider = option.value as 'local-vault' | 'custom-endpoint'"
+            >
+              {{ option.label }}
+            </Button>
+          </div>
+
+          <div v-if="cloudSync.provider === 'custom-endpoint'" class="space-y-3">
+            <Input
+              v-model="cloudSync.endpoint"
+              type="url"
+              class="rounded-xl"
+              placeholder="https://example.com/sleep-sync.json"
+              aria-label="Cloud sync endpoint URL"
+            />
+            <Input
+              v-model="cloudSync.accessToken"
+              type="password"
+              class="rounded-xl"
+              placeholder="Access token"
+              aria-label="Cloud sync access token"
+            />
+          </div>
+
+          <div class="flex items-center justify-between rounded-xl bg-muted/30 p-3">
+            <div>
+              <p class="text-sm font-medium">Auto Sync</p>
+              <p class="text-xs text-muted-foreground">Preference saved for future background sync</p>
+            </div>
+            <button
+              class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors"
+              :class="cloudSync.autoSync ? 'bg-primary' : 'bg-secondary'"
+              aria-label="Toggle auto sync preference"
+              role="switch"
+              :aria-checked="cloudSync.autoSync"
+              @click="cloudSync.autoSync = !cloudSync.autoSync"
+            >
+              <span
+                class="inline-block size-4 rounded-full bg-white shadow-sm transition-transform"
+                :class="cloudSync.autoSync ? 'translate-x-6' : 'translate-x-1'"
+              />
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              class="rounded-xl"
+              :disabled="!cloudSync.enabled || !isCloudSyncConfigured || cloudSyncStatus === 'syncing'"
+              @click="handleCloudPush"
+            >
+              <Upload class="mr-2 size-4" />
+              Push
+            </Button>
+            <Button
+              variant="outline"
+              class="rounded-xl"
+              :disabled="!cloudSync.enabled || !isCloudSyncConfigured || cloudSyncStatus === 'syncing'"
+              @click="handleCloudPull"
+            >
+              <Download class="mr-2 size-4" />
+              Pull
+            </Button>
+          </div>
+
+          <p v-if="cloudSyncStatus === 'syncing'" class="flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2 text-xs text-primary">
+            <RefreshCw class="size-3 animate-spin" />
+            Syncing sleep data...
+          </p>
+          <p v-if="cloudSyncMessage" class="rounded-xl bg-primary/10 px-3 py-2 text-xs text-primary">
+            {{ cloudSyncMessage }}
+          </p>
+          <p v-if="cloudSyncError" class="rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            {{ cloudSyncError }}
+          </p>
         </div>
       </div>
 

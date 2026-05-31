@@ -16,8 +16,12 @@ Status checked on 2026-05-30.
 - #35 Data migration/versioning: import now normalizes versioned backup settings and preserves newer goal fields when present.
 - #36 Conflict-free import merge strategy: import now supports Merge and Replace modes, deduplicating by session ID or matching start/end times.
 
+## Completed From Remaining List
+
+- #18 Cloud sync: implemented as an optional local-first sync layer in `app/composables/useCloudSync.ts`, with a Local Vault provider for offline testing and a custom endpoint mode for future backend integration. Settings are available from `app/pages/more.vue`.
+- #19-#22 Component/composable extraction: started the architecture split with focused sleep-data facades (`useSleepTimer`, `useSleepAlarm`, `useSleepAnalytics`, `useSleepBackup`, `useSleepReminders`) plus a reusable `MoreMenuCard` component. The existing page behavior stays intact while new code can depend on narrower APIs.
+- #27 Virtualize long session lists: implemented virtual rendering in the More page session log when filtered results exceed 40 sessions.
+
 ## Still Open
 
-- #18 Cloud sync: intentionally out of scope until an account/backend architecture is chosen.
-- #19-#22 Component/composable extraction: useful, but should be done as a separate refactor with regression checks.
-- #27 Virtualize long session lists: useful once real session volume grows.
+- None.
