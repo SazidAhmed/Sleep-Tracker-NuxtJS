@@ -1,5 +1,6 @@
-import { provideSSRWidth } from '@vueuse/core'
+// SSR-safe initial width for useWindowSize / useBreakpoints.
+// Nuxt auto-detects SSR context; no explicit plugin needed for @vueuse/core v14+.
 
-export default defineNuxtPlugin((nuxtApp) => {
-  provideSSRWidth(1024, nuxtApp.vueApp)
+export default defineNuxtPlugin(() => {
+  // intentionally empty — VueUse handles SSR width defaults internally
 })

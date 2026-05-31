@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MoonStar, Clock, Zap, Flame, ArrowRight, Lightbulb, Play, Plus, History, BarChart3, X, Sparkles, Download } from 'lucide-vue-next'
+import { MoonStar, Clock, Zap, Flame, ArrowRight, Lightbulb, Play, Plus, History, BarChart3, X, Sparkles, Download, BookOpen } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
 import { getQualityEmoji, getQualityLabel } from '@/lib/sleep'
 import { useLongPress } from '@/composables/useLongPress'
@@ -8,6 +8,7 @@ import { usePwaInstall } from '@/composables/usePwaInstall'
 
 definePageMeta({
   layout: 'mobile',
+  alias: ['/today'],
 })
 
 const {
@@ -22,6 +23,7 @@ const {
   formatDateLabel,
   formatTimeLabel,
   getSessionDurationMinutes,
+  refreshNow,
 } = useSleepData()
 
 function getGradeBadgeClass(grade: string) {
@@ -118,10 +120,99 @@ function quickStartTimer() {
   closeQuickActions()
   router.push('/timer')
 }
+// Pull-to-refresh gesture handling
+const isRefreshing = ref(false)
+const pullDistance = ref(0)
+const maxPull = 120 // maximum pull-down in px
+const triggerThreshold = 70 // pull distance to trigger refresh in px
+const pullIndicatorScale = computed(() => Math.min(pullDistance.value / triggerThreshold, 1.2))
+const pullIndicatorRotate = computed(() => (pullDistance.value / maxPull) * 360)
+
+let touchStartY = 0
+let touchStartX = 0
+let isPulling = false
+
+function handleTouchStart(e: TouchEvent) {
+  if (window.scrollY > 5 || isRefreshing.value) return
+  touchStartY = e.touches[0]!.clientY
+  touchStartX = e.touches[0]!.clientX
+  isPulling = false
+}
+
+function handleTouchMove(e: TouchEvent) {
+  if (window.scrollY > 5 || isRefreshing.value) return
+  const currentY = e.touches[0]!.clientY
+  const currentX = e.touches[0]!.clientX
+  const deltaY = currentY - touchStartY
+  const deltaX = currentX - touchStartX
+
+  if (!isPulling && Math.abs(deltaX) > Math.abs(deltaY)) return
+
+  if (deltaY > 0) {
+    isPulling = true
+    const resistance = 0.4
+    pullDistance.value = Math.min(deltaY * resistance, maxPull)
+    
+    if (pullDistance.value > 10) {
+      if (e.cancelable) e.preventDefault()
+    }
+  }
+}
+
+async function handleTouchEnd() {
+  if (!isPulling) return
+  isPulling = false
+
+  if (pullDistance.value >= triggerThreshold) {
+    isRefreshing.value = true
+    pullDistance.value = triggerThreshold
+    haptics.medium()
+
+    refreshNow()
+
+    setTimeout(() => {
+      isRefreshing.value = false
+      pullDistance.value = 0
+    }, 1000)
+  } else {
+    pullDistance.value = 0
+  }
+}
 </script>
 
 <template>
-  <div ref="quickActionArea" class="relative min-h-screen p-4 pb-24">
+  <div
+    ref="quickActionArea"
+    class="relative min-h-screen p-4 pb-24 transition-transform duration-150 ease-out"
+    :style="{ transform: pullDistance > 0 ? `translateY(${pullDistance * 0.4}px)` : 'translateY(0px)' }"
+    @touchstart="handleTouchStart"
+    @touchmove="handleTouchMove"
+    @touchend="handleTouchEnd"
+  >
+    <!-- Pull-to-refresh loading indicator -->
+    <div
+      class="pointer-events-none absolute left-0 right-0 z-40 flex justify-center transition-all duration-200"
+      :style="{
+        top: '12px',
+        transform: `translateY(${pullDistance - 40}px)`,
+        opacity: pullDistance > 10 ? 1 : 0
+      }"
+    >
+      <div class="flex size-10 items-center justify-center rounded-full bg-card border border-border/80 shadow-md text-primary">
+        <svg
+          class="size-5 transition-transform"
+          :class="isRefreshing ? 'animate-spin text-primary' : 'text-primary/70'"
+          :style="!isRefreshing ? { transform: `rotate(${pullIndicatorRotate}deg) scale(${pullIndicatorScale})` } : {}"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2.5"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+        </svg>
+      </div>
+    </div>
     <!-- Goal Celebration Confetti Overlay -->
     <Teleport to="body">
       <div v-if="showCelebration" class="pointer-events-none fixed inset-0 z-[100] overflow-hidden">
@@ -215,6 +306,15 @@ function quickStartTimer() {
               <History class="size-6" />
             </div>
             <span class="text-sm font-medium">Calendar</span>
+          </button>
+          <button
+            class="col-span-2 flex items-center justify-center gap-3 rounded-2xl bg-secondary/50 p-3 transition-colors hover:bg-secondary"
+            @click="quickNavigate('/journal')"
+          >
+            <div class="flex size-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-500">
+              <BookOpen class="size-5" />
+            </div>
+            <span class="text-sm font-medium">Dream Journal</span>
           </button>
         </div>
         <p class="mt-4 text-center text-xs text-muted-foreground">

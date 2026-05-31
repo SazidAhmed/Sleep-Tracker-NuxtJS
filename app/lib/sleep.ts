@@ -19,6 +19,9 @@ export interface SessionTemplate {
 
 export interface SleepSettings {
   dailyGoalHours: number
+  weekdayGoalHours?: number
+  weekendGoalHours?: number
+  useSplitGoals?: boolean
   anchorTime: string
 }
 
@@ -190,12 +193,15 @@ export function summarizeSleepDay(date: string, sessions: SleepSession[], goalHo
   }
 }
 
-export function buildRecentHistory(today: string, sessions: SleepSession[], goalHours: number, days = 7) {
+export function buildRecentHistory(today: string, sessions: SleepSession[], goalHours: number | ((date: string) => number), days = 7) {
   return Array.from({ length: days }, (_, index) => addDays(today, index - (days - 1)))
-    .map((date) => summarizeSleepDay(date, sessions, goalHours))
+    .map((date) => {
+      const hours = typeof goalHours === 'function' ? goalHours(date) : goalHours
+      return summarizeSleepDay(date, sessions, hours)
+    })
 }
 
-export function buildMonthGrid(referenceDate: Date, sessions: SleepSession[], goalHours: number, today: string) {
+export function buildMonthGrid(referenceDate: Date, sessions: SleepSession[], goalHours: number | ((date: string) => number), today: string) {
   const year = referenceDate.getFullYear()
   const month = referenceDate.getMonth()
   const monthStart = new Date(year, month, 1)
@@ -208,7 +214,8 @@ export function buildMonthGrid(referenceDate: Date, sessions: SleepSession[], go
     const cellDate = new Date(gridStart)
     cellDate.setDate(gridStart.getDate() + index)
     const dateKey = getDateKey(cellDate)
-    const summary = summarizeSleepDay(dateKey, sessions, goalHours)
+    const hours = typeof goalHours === 'function' ? goalHours(dateKey) : goalHours
+    const summary = summarizeSleepDay(dateKey, sessions, hours)
 
     return {
       ...summary,
@@ -367,12 +374,13 @@ export function exportSessionsToCSV(sessions: SleepSession[]): string {
   return [headers.join(','), ...rows.map(row => row.join(','))].join('\n')
 }
 
-export function calculateStreak(today: string, sessions: SleepSession[], goalHours: number): number {
+export function calculateStreak(today: string, sessions: SleepSession[], goalHours: number | ((date: string) => number)): number {
   let streak = 0
   let date = today
 
   for (let i = 0; i < 365; i++) {
-    const summary = summarizeSleepDay(date, sessions, goalHours)
+    const hours = typeof goalHours === 'function' ? goalHours(date) : goalHours
+    const summary = summarizeSleepDay(date, sessions, hours)
     if (summary.remainingMinutes === 0 && summary.goalMinutes > 0) {
       streak++
     }
@@ -402,7 +410,7 @@ export interface SleepDebtSummary {
 export function calculateSleepDebt(
   today: string,
   sessions: SleepSession[],
-  goalHours: number,
+  goalHours: number | ((date: string) => number),
   days = 30,
 ): SleepDebtSummary {
   const history = buildRecentHistory(today, sessions, goalHours, days)
@@ -463,7 +471,7 @@ export interface SocialJetlagSummary {
 export function calculateSocialJetlag(
   today: string,
   sessions: SleepSession[],
-  goalHours: number,
+  goalHours: number | ((date: string) => number),
   days = 28,
 ): SocialJetlagSummary {
   const history = buildRecentHistory(today, sessions, goalHours, days)
@@ -520,7 +528,7 @@ export interface SleepRecommendation {
 export function generateRecommendations(
   today: string,
   sessions: SleepSession[],
-  goalHours: number,
+  goalHours: number | ((date: string) => number),
 ): SleepRecommendation[] {
   const recommendations: SleepRecommendation[] = []
   const history = buildRecentHistory(today, sessions, goalHours, 30)
@@ -783,9 +791,10 @@ export interface GoalForecast {
 export function forecastGoalAchievement(
   today: string,
   sessions: SleepSession[],
-  goalHours: number,
+  goalHours: number | ((date: string) => number),
 ): GoalForecast {
-  const summary = summarizeSleepDay(today, sessions, goalHours)
+  const hours = typeof goalHours === 'function' ? goalHours(today) : goalHours
+  const summary = summarizeSleepDay(today, sessions, hours)
 
   if (summary.remainingMinutes === 0) {
     return {
@@ -840,7 +849,7 @@ export interface PeriodComparison {
 export function comparePeriods(
   today: string,
   sessions: SleepSession[],
-  goalHours: number,
+  goalHours: number | ((date: string) => number),
   period1Days = 7,
   period2Days = 7,
 ): PeriodComparison {
@@ -1131,10 +1140,11 @@ export interface SleepScore {
 export function calculateSleepScore(
   today: string,
   sessions: SleepSession[],
-  goalHours: number,
+  goalHours: number | ((date: string) => number),
 ): SleepScore {
   // ── 1. Duration (50 pts max) ──────────────────────────────
-  const todaySummary = summarizeSleepDay(today, sessions, goalHours)
+  const todayGoal = typeof goalHours === 'function' ? goalHours(today) : goalHours
+  const todaySummary = summarizeSleepDay(today, sessions, todayGoal)
   const durationScore = Math.round((todaySummary.percentage / 100) * 50)
 
   // ── 2. Consistency (20 pts max) ───────────────────────────
@@ -1172,7 +1182,7 @@ export function calculateSleepScore(
 
   // ── 4. Debt-free (10 pts max) ─────────────────────────────
   const debt = calculateSleepDebt(today, sessions, goalHours, 7)
-  const maxDebt = goalHours * 60 * 7 // maximum possible debt = 7 full missed nights
+  const maxDebt = todayGoal * 60 * 7 // maximum possible debt = 7 full missed nights
   const debtFreeScore = Math.round(Math.max(0, 10 * (1 - debt.totalDebtMinutes / maxDebt)))
 
   // ── Composite ─────────────────────────────────────────────
@@ -1196,4 +1206,54 @@ export function calculateSleepScore(
       debtFree: debtFreeScore,
     },
   }
+}
+
+// Sleep Regularity Index (SRI)
+// Calculates consistency of sleep state (awake vs. asleep) across consecutive days
+export function calculateSleepRegularityIndex(sessions: SleepSession[], todayKey: string, days = 7): number {
+  const dates: string[] = []
+  for (let i = 0; i < days; i++) {
+    dates.push(addDays(todayKey, -i))
+  }
+  dates.reverse() // chronologically ordered
+
+  const dailyStates: number[][] = dates.map(dateStr => {
+    const dayStart = new Date(`${dateStr}T00:00:00`).getTime()
+    const bins = new Array(96).fill(0) // 15-minute intervals
+
+    const relatedSessions = sessions.filter(session => {
+      const s = new Date(session.start).getTime()
+      const e = new Date(session.end).getTime()
+      return s < dayStart + 24 * 60 * 60 * 1000 && e > dayStart
+    })
+
+    for (let binIndex = 0; binIndex < 96; binIndex++) {
+      const binStart = dayStart + binIndex * 15 * 60 * 1000
+      const binEnd = binStart + 15 * 60 * 1000
+      const isAsleep = relatedSessions.some(session => {
+        const s = new Date(session.start).getTime()
+        const e = new Date(session.end).getTime()
+        return s < binEnd && e > binStart
+      })
+      bins[binIndex] = isAsleep ? 1 : 0
+    }
+    return bins
+  })
+
+  let totalBins = 0
+  let matches = 0
+
+  for (let d = 0; d < dailyStates.length - 1; d++) {
+    const dayA = dailyStates[d]!
+    const dayB = dailyStates[d + 1]!
+    for (let b = 0; b < 96; b++) {
+      if (dayA[b] === dayB[b]) {
+        matches++
+      }
+      totalBins++
+    }
+  }
+
+  if (totalBins === 0) return 0
+  return Math.round((matches / totalBins) * 100)
 }

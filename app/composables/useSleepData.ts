@@ -1,4 +1,4 @@
-import { useLocalStorage } from '@vueuse/core'
+import { useLocalStorage, useDebounceFn, createGlobalState } from '@vueuse/core'
 import {
   buildMonthGrid,
   buildGuidance,
@@ -31,6 +31,7 @@ import {
   validateAndRepairData,
   calculateSmartAlarmTime,
   calculateSleepScore,
+  calculateSleepRegularityIndex,
   type SleepSession,
   type SleepSettings,
   type SessionTemplate,
@@ -43,13 +44,50 @@ import {
   type AlarmConfig,
   type AlarmType,
   type SleepScore,
+  SLEEP_TAGS,
 } from '@/lib/sleep'
 
-export function useSleepData() {
+type BackupImportMode = 'merge' | 'replace'
+
+interface SleepBackupPayload {
+  version?: number
+  settings?: Partial<SleepSettings>
+  sessions?: Partial<SleepSession>[]
+}
+
+function _useSleepData() {
   const settings = useLocalStorage<SleepSettings>('sleep-tracker-settings', {
     dailyGoalHours: 8,
+    weekdayGoalHours: 7.5,
+    weekendGoalHours: 8.5,
+    useSplitGoals: false,
     anchorTime: '05:00',
   })
+
+  function getGoalHoursForDate(dateStr: string): number {
+    if (settings.value.useSplitGoals && settings.value.weekdayGoalHours !== undefined && settings.value.weekendGoalHours !== undefined) {
+      const d = new Date(`${dateStr}T00:00:00`)
+      const day = d.getDay()
+      const isWeekend = day === 0 || day === 6 // Saturday and Sunday
+      return isWeekend ? settings.value.weekendGoalHours : settings.value.weekdayGoalHours
+    }
+    return settings.value.dailyGoalHours
+  }
+
+  const customTags = useLocalStorage<string[]>('sleep-tracker-custom-tags', [...SLEEP_TAGS])
+
+  function addCustomTag(tag: string) {
+    const trimmed = tag.trim()
+    if (!trimmed) return { error: 'Tag cannot be empty.' }
+    if (customTags.value.includes(trimmed)) return { error: 'Tag already exists.' }
+    customTags.value.push(trimmed)
+    return { success: true }
+  }
+
+  function removeCustomTag(tag: string) {
+    customTags.value = customTags.value.filter(t => t !== tag)
+    return { success: true }
+  }
 
   const sessions = useLocalStorage<SleepSession[]>('sleep-tracker-sessions', [])
   const templates = useLocalStorage<SessionTemplate[]>('sleep-tracker-templates', [])
@@ -95,13 +133,20 @@ export function useSleepData() {
       .sort((a, b) => b.start.localeCompare(a.start)),
   )
 
+  const debouncedSessions = ref(normalizedSessions.value)
+  const updateDebouncedSessions = useDebounceFn((value: SleepSession[]) => {
+    debouncedSessions.value = value
+  }, 150)
+
+  watch(normalizedSessions, (value) => updateDebouncedSessions(value), { immediate: true })
+
   const todayKey = computed(() => getDateKey(now.value))
   const todaySummary = computed(() =>
-    summarizeSleepDay(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours),
+    summarizeSleepDay(todayKey.value, normalizedSessions.value, getGoalHoursForDate(todayKey.value)),
   )
 
   const weekHistory = computed(() =>
-    buildRecentHistory(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours),
+    buildRecentHistory(todayKey.value, debouncedSessions.value, getGoalHoursForDate),
   )
 
   const averageSleepMinutes = computed(() => {
@@ -115,7 +160,7 @@ export function useSleepData() {
   )
 
   const currentStreak = computed(() =>
-    calculateStreak(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours),
+    calculateStreak(todayKey.value, normalizedSessions.value, getGoalHoursForDate),
   )
 
   const latestSession = computed(() => normalizedSessions.value[0] ?? null)
@@ -155,15 +200,15 @@ export function useSleepData() {
   })
 
   const sleepDebt = computed(() =>
-    calculateSleepDebt(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours, 30),
+    calculateSleepDebt(todayKey.value, debouncedSessions.value, getGoalHoursForDate, 30),
   )
 
   const socialJetlag = computed(() =>
-    calculateSocialJetlag(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours, 28),
+    calculateSocialJetlag(todayKey.value, debouncedSessions.value, getGoalHoursForDate, 28),
   )
 
   const recommendations = computed(() =>
-    generateRecommendations(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours),
+    generateRecommendations(todayKey.value, debouncedSessions.value, getGoalHoursForDate),
   )
 
   // Timer functions
@@ -400,22 +445,66 @@ export function useSleepData() {
     return { success: true }
   }
 
-  function importBackup(data: { settings?: Partial<SleepSettings>, sessions?: SleepSession[] }) {
+  function importBackup(data: SleepBackupPayload, mode: BackupImportMode = 'merge') {
     if (!data.settings || !Array.isArray(data.sessions)) {
       return { error: 'Backup file format is invalid.' }
     }
 
     const dailyGoalHours = Number(data.settings.dailyGoalHours)
     const anchorTime = typeof data.settings.anchorTime === 'string' ? data.settings.anchorTime : '05:00'
-    const validSessions = data.sessions.filter(isSessionValid)
+    const weekdayGoalHours = Number(data.settings.weekdayGoalHours)
+    const weekendGoalHours = Number(data.settings.weekendGoalHours)
+    const backupSettings: SleepSettings = {
+      dailyGoalHours,
+      anchorTime,
+      useSplitGoals: data.settings.useSplitGoals === true,
+      weekdayGoalHours: Number.isFinite(weekdayGoalHours) && weekdayGoalHours > 0 ? weekdayGoalHours : settings.value.weekdayGoalHours,
+      weekendGoalHours: Number.isFinite(weekendGoalHours) && weekendGoalHours > 0 ? weekendGoalHours : settings.value.weekendGoalHours,
+    }
+
+    const validSessions = data.sessions
+      .map((session): SleepSession => ({
+        id: typeof session.id === 'string' && session.id ? session.id : crypto.randomUUID(),
+        start: typeof session.start === 'string' ? session.start : '',
+        end: typeof session.end === 'string' ? session.end : '',
+        createdAt: typeof session.createdAt === 'string' ? session.createdAt : new Date().toISOString(),
+        quality: session.quality,
+        tags: Array.isArray(session.tags) ? session.tags.filter(tag => typeof tag === 'string') : undefined,
+        notes: typeof session.notes === 'string' ? session.notes : undefined,
+      }))
+      .filter(isSessionValid)
 
     if (!Number.isFinite(dailyGoalHours) || dailyGoalHours <= 0) {
       return { error: 'Backup file does not contain a valid sleep goal.' }
     }
 
-    settings.value = { dailyGoalHours, anchorTime }
-    sessions.value = validSessions
-    return { success: true, count: validSessions.length }
+    settings.value = backupSettings
+
+    if (mode === 'replace') {
+      sessions.value = validSessions
+      return {
+        success: true,
+        count: validSessions.length,
+        importedCount: validSessions.length,
+        skippedCount: data.sessions.length - validSessions.length,
+        mode,
+      }
+    }
+
+    const existingKeys = new Set(sessions.value.flatMap(session => [session.id, `${session.start}|${session.end}`]))
+    const newSessions = validSessions.filter((session) => {
+      const timeKey = `${session.start}|${session.end}`
+      return !existingKeys.has(session.id) && !existingKeys.has(timeKey)
+    })
+
+    sessions.value = [...newSessions, ...sessions.value]
+    return {
+      success: true,
+      count: newSessions.length,
+      importedCount: newSessions.length,
+      skippedCount: data.sessions.length - newSessions.length,
+      mode,
+    }
   }
 
   // CSV Export
@@ -458,6 +547,11 @@ export function useSleepData() {
     return { error: 'No session to recover' }
   }
 
+  function refreshNow() {
+    now.value = new Date()
+    interruptedSession.value = checkInterruptedSession()
+  }
+
   // Data validation
   function validateData() {
     return validateAndRepairData(sessions.value)
@@ -469,15 +563,15 @@ export function useSleepData() {
   )
 
   const sleepPattern = computed(() =>
-    detectSleepPattern(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours),
+    detectSleepPattern(todayKey.value, normalizedSessions.value),
   )
 
   const goalForecast = computed(() =>
-    forecastGoalAchievement(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours),
+    forecastGoalAchievement(todayKey.value, normalizedSessions.value, getGoalHoursForDate),
   )
 
   const periodComparison = computed(() =>
-    comparePeriods(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours),
+    comparePeriods(todayKey.value, normalizedSessions.value, getGoalHoursForDate),
   )
 
   const bedtimeTrend = computed(() =>
@@ -489,7 +583,11 @@ export function useSleepData() {
   )
 
   const sleepScore = computed(() =>
-    calculateSleepScore(todayKey.value, normalizedSessions.value, settings.value.dailyGoalHours),
+    calculateSleepScore(todayKey.value, normalizedSessions.value, getGoalHoursForDate),
+  )
+
+  const regularityIndex = computed(() =>
+    calculateSleepRegularityIndex(sessions.value, todayKey.value, 7),
   )
 
   // Alarm logic
@@ -681,6 +779,10 @@ export function useSleepData() {
     generateAutoBackup,
     checkInterruptedSession,
     recoverSession,
+    refreshNow,
+    customTags,
+    addCustomTag,
+    removeCustomTag,
     validateData,
     sleepEfficiency,
     sleepPattern,
@@ -689,6 +791,8 @@ export function useSleepData() {
     bedtimeTrend,
     tagEffectiveness,
     sleepScore,
+    regularityIndex,
+    getGoalHoursForDate,
     interruptedSession,
     formatDurationFromMinutes,
     formatDateLabel,
@@ -702,3 +806,5 @@ export function useSleepData() {
     toDateTimeLocalValue,
   }
 }
+
+export const useSleepData = createGlobalState(_useSleepData)

@@ -1,0 +1,114 @@
+- generic [ref=e4]:
+  - main [ref=e5]:
+    - generic [ref=e7]:
+      - generic [ref=e9]:
+        - img [ref=e11]
+        - generic [ref=e13]: Sleep Timer
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - img [ref=e16]
+          - generic [ref=e18]:
+            - paragraph [ref=e19]: 00:00:00
+            - paragraph [ref=e20]: Ready to track
+        - button "Start Sleep" [ref=e21]:
+          - img
+          - text: Start Sleep
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - img [ref=e26]
+          - heading "Wake-up Alarm" [level=2] [ref=e33]
+        - generic [ref=e34]:
+          - button "Settings" [ref=e35]
+          - switch "Toggle wake-up alarm" [ref=e36] [cursor=pointer]
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - generic [ref=e40]: Today's Progress
+          - generic [ref=e41]: 0%
+        - generic [ref=e43]:
+          - generic [ref=e44]: 0m done
+          - generic [ref=e45]: 8h left
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - generic [ref=e48]:
+            - img [ref=e50]
+            - heading "Quick Templates" [level=2] [ref=e52]
+          - button "New" [ref=e53]:
+            - img
+            - text: New
+        - generic [ref=e54]:
+          - paragraph [ref=e55]: No templates yet
+          - paragraph [ref=e56]: Create quick-log templates for common sleep patterns
+        - button "Save current times as template" [ref=e57]:
+          - img [ref=e58]
+          - text: Save current times as template
+      - generic [ref=e62]:
+        - generic [ref=e63]:
+          - img [ref=e65]
+          - heading "Log Sleep Manually" [level=2] [ref=e66]
+        - generic [ref=e67]:
+          - generic [ref=e68]:
+            - text: Sleep Start
+            - textbox "Sleep Start" [ref=e69]: 2026-05-31T13:03
+          - generic [ref=e70]:
+            - text: Wake Time
+            - textbox "Wake Time" [ref=e71]: 2026-05-31T14:33
+          - generic [ref=e72]:
+            - text: Sleep Quality
+            - radiogroup "Sleep Quality Rating" [ref=e73]:
+              - radio "Poor" [ref=e74]: 😫
+              - radio "Fair" [ref=e75]: 😕
+              - radio "Average" [ref=e76]: 😐
+              - radio "Good" [ref=e77]: 😊
+              - radio "Excellent" [ref=e78]: 😴
+          - generic [ref=e79]:
+            - text: Tags
+            - group "Sleep tags" [ref=e80]:
+              - button "Toggle tag Nap" [ref=e81]: Nap
+              - button "Toggle tag Deep Sleep" [ref=e82]: Deep Sleep
+              - button "Toggle tag Light Sleep" [ref=e83]: Light Sleep
+              - button "Toggle tag Interrupted" [ref=e84]: Interrupted
+              - button "Toggle tag Good Dreams" [ref=e85]: Good Dreams
+              - button "Toggle tag Restless" [ref=e86]: Restless
+              - button "Toggle tag Recovery" [ref=e87]: Recovery
+              - button "Toggle tag Sick" [ref=e88]: Sick
+              - button "Toggle tag Travel" [ref=e89]: Travel
+          - generic [ref=e90]:
+            - text: Notes
+            - textbox "Notes" [ref=e91]:
+              - /placeholder: How did you sleep?
+          - button "Save Session" [ref=e92]:
+            - text: Save Session
+            - img
+  - navigation [ref=e93]:
+    - generic [ref=e94]:
+      - link "Timer" [ref=e95] [cursor=pointer]:
+        - /url: /timer
+        - img [ref=e97]
+        - generic [ref=e100]: Timer
+      - link "Today" [ref=e101] [cursor=pointer]:
+        - /url: /
+        - img [ref=e103]
+        - generic [ref=e109]: Today
+      - link "History" [ref=e110] [cursor=pointer]:
+        - /url: /history
+        - img [ref=e112]
+        - generic [ref=e114]: History
+      - link "Heat" [ref=e115] [cursor=pointer]:
+        - /url: /heatmap
+        - img [ref=e117]
+        - generic [ref=e119]: Heat
+      - link "Tips" [ref=e120] [cursor=pointer]:
+        - /url: /recommendations
+        - img [ref=e122]
+        - generic [ref=e125]: Tips
+      - link "Calendar" [ref=e126] [cursor=pointer]:
+        - /url: /calendar
+        - img [ref=e128]
+        - generic [ref=e130]: Calendar
+      - link "More" [ref=e131] [cursor=pointer]:
+        - /url: /more
+        - img [ref=e133]
+        - generic [ref=e137]: More
+      - button "Dark" [ref=e138]:
+        - img [ref=e140]
+        - generic [ref=e142]: Dark

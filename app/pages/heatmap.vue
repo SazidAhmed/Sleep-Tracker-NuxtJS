@@ -192,7 +192,7 @@ function handleDayClick(date: string) {
           <div
             v-for="(day, index) in yearData"
             :key="day.date"
-            class="group relative aspect-square rounded-sm select-none"
+            class="group relative aspect-square rounded-sm select-none border border-border/20 dark:border-transparent"
             :class="[
               getHeatColor(day),
               day.isCurrentYear ? 'cursor-pointer hover:ring-1 hover:ring-primary/50 hover:scale-110 active:scale-90 transition-all z-10' : 'pointer-events-none'

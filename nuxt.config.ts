@@ -3,13 +3,26 @@ import tailwindcss from '@tailwindcss/vite'
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
-  devtools: { enabled: true },
+  devtools: { enabled: false },
   css: ['~/assets/css/tailwind.css'],
   nitro: {
     preset: 'static',
   },
   vite: {
     plugins: [tailwindcss()],
+    optimizeDeps: {
+      include: [
+        'lucide-vue-next',
+        '@vueuse/core',
+        'clsx',
+        'tailwind-merge',
+        '@vue/devtools-core',
+        '@vue/devtools-kit'
+      ]
+    }
+  },
+  routeRules: {
+    '/sw.js': { prerender: false }
   },
   modules: ['shadcn-nuxt', '@vite-pwa/nuxt', '@nuxtjs/color-mode'],
   colorMode: {
@@ -64,7 +77,7 @@ export default defineNuxtConfig({
           name: 'Today\'s Summary',
           short_name: 'Today',
           description: 'Check today\'s sleep progress',
-          url: '/',
+          url: '/today',
           icons: [{ src: '/icon-512x512.png', sizes: '512x512', type: 'image/png' }],
         },
       ],

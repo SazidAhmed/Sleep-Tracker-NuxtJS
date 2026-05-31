@@ -129,3 +129,20 @@ Tapping any day in the Calendar or Heatmap now opens a high-end custom bottom sh
 3. **Interactive Heatmap Blocks (`app/pages/heatmap.vue`):**
    - Transformed static heatmap day squares into fully clickable buttons with zoom/lift transitions (`hover:scale-110 active:scale-90 transition-all`).
    - Bound click handlers to open the details modal with a single tap.
+
+---
+
+### ✅ #32 — Sleep Quality Trend Chart in History
+**File:** `app/pages/history.vue`
+
+Visualized user sleep quality ratings over a rolling 30-day window using an elegant, customized purple SVG trend line that operates in parallel to the duration trend chart.
+
+**Details:**
+1. **Robust Aggregation & Formatting (`app/pages/history.vue`):**
+   - Built a computed property `average30DayQuality` that filters sessions for the last 30 days and aggregates ratings to determine a rolling 30-day average rating score (e.g., `4.2/5`) and the matching summary emoji.
+   - Built a computed property `qualityTrendChart` that calculates average daily ratings per day over the 30-day period.
+   - **No Rating Guard:** Automatically skips dates without quality ratings, allowing the SVG trend line to gracefully connect only active data points without dropping to zero.
+2. **High-End UI Component:**
+   - Prominently showcases a rolling 30-day average metric alongside its visual quality emoji/status indicator (e.g., Good 😴).
+   - Plots daily scores (1–5) onto a high-performance SVG chart with custom gradients, sharp purple vector paths, and white-bordered dot indicators for each tracked day.
+   - Uses an empty state card with a peaceful emoji illustration if no sleep quality ratings have been recorded yet.

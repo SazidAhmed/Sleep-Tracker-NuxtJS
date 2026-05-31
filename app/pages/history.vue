@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { BarChart3, TrendingUp, TrendingDown, Clock, CalendarDays, Flame, AlertCircle, ArrowUpRight, ArrowDownRight, Minus, Briefcase, Coffee, Target, Activity, Moon, Sparkles, Tag } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
-import { buildRecentHistory } from '@/lib/sleep'
+import { buildRecentHistory, getQualityEmoji, getQualityLabel, addDays } from '@/lib/sleep'
 
 definePageMeta({
   layout: 'mobile',
@@ -24,7 +24,37 @@ const {
   formatDurationFromMinutes,
   formatDateLabel,
   averageSleepMinutes,
+  regularityIndex,
 } = useSleepData()
+
+const sriInfo = computed(() => {
+  const score = regularityIndex.value
+  if (score >= 85) {
+    return {
+      label: 'Excellent',
+      colorClass: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
+      description: 'Outstanding circadian alignment! Your body clock is perfectly synchronized.'
+    }
+  } else if (score >= 70) {
+    return {
+      label: 'Good',
+      colorClass: 'text-primary bg-primary/10 border-primary/20',
+      description: 'Good regularity. Your body rhythm is healthy and stable.'
+    }
+  } else if (score >= 50) {
+    return {
+      label: 'Fair',
+      colorClass: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
+      description: 'Fair consistency. Try sleeping and waking at more consistent times.'
+    }
+  } else {
+    return {
+      label: 'Low',
+      colorClass: 'text-red-500 bg-red-500/10 border-red-500/20',
+      description: 'Highly irregular schedule. Focus on consistent bedtime anchors to reduce fatigue.'
+    }
+  }
+})
 
 // 7-day bar chart
 const weeklyChart = computed(() => {
@@ -80,7 +110,83 @@ const trendChart = computed(() => {
 const hasAnyData = computed(() => thirtyDayHistory.value.some(d => d.minutes > 0))
 const hasWeekData = computed(() => weekHistory.value.some(d => d.minutes > 0))
 
+const average30DayQuality = computed(() => {
+  const rated = sessions.value.filter(s => {
+    const d = s.start.slice(0, 10)
+    return d >= addDays(todayKey.value, -30) && s.quality
+  })
+  if (rated.length === 0) return null
+  const avg = rated.reduce((sum, s) => sum + (s.quality || 0), 0) / rated.length
+  return {
+    score: avg.toFixed(1),
+    emoji: getQualityEmoji(Math.round(avg)),
+    label: getQualityLabel(Math.round(avg)),
+  }
+})
+
+const qualityTrendChart = computed(() => {
+  const data = thirtyDayHistory.value
+  const W = 320
+  const H = 100
+  const pad = 8
+
+  // Map days to points
+  const points = data.map((d, i) => {
+    const rated = d.sessions.filter(s => s.quality)
+    const avgQuality = rated.length > 0
+      ? rated.reduce((sum, s) => sum + (s.quality || 0), 0) / rated.length
+      : null
+
+    return {
+      x: pad + (i / (data.length - 1)) * (W - pad * 2),
+      quality: avgQuality,
+      date: d.date,
+    }
+  })
+
+  // Filter only points that have a quality rating
+  const activePoints = points.filter(p => p.quality !== null) as Array<{ x: number, quality: number, date: string }>
+
+  if (activePoints.length === 0) {
+    return { points: [], linePoints: '', areaPoints: '', hasData: false, W, H }
+  }
+
+  // Quality range is 1 to 5. Let's map Y so that 5 is at the top (pad) and 1 is at the bottom (H - pad)
+  const mappedPoints = activePoints.map(p => {
+    const ratio = (p.quality - 1) / 4
+    const y = H - pad - ratio * (H - pad * 2)
+    return {
+      x: p.x,
+      y,
+      quality: p.quality,
+      date: p.date,
+    }
+  })
+
+  const linePoints = mappedPoints.map(p => `${p.x},${p.y}`).join(' ')
+
+  const areaPoints = [
+    `${mappedPoints[0]!.x},${H - pad}`,
+    ...mappedPoints.map(p => `${p.x},${p.y}`),
+    `${mappedPoints[mappedPoints.length - 1]!.x},${H - pad}`,
+  ].join(' ')
+
+  return {
+    points: mappedPoints,
+    linePoints,
+    areaPoints,
+    hasData: true,
+    W,
+    H,
+  }
+})
+
 const reversedHistory = computed(() => [...weekHistory.value].reverse())
+
+const isMounted = ref(false)
+onMounted(() => {
+  isMounted.value = true
+})
 </script>
 
 <template>
@@ -100,17 +206,20 @@ const reversedHistory = computed(() => [...weekHistory.value].reverse())
       <div class="rounded-2xl border border-border/60 bg-card p-3 text-center">
         <Flame
           class="mx-auto mb-1 size-5"
-          :class="currentStreak > 0 ? 'text-orange-500' : 'text-muted-foreground'"
+          :class="isMounted && currentStreak > 0 ? 'text-orange-500' : 'text-muted-foreground'"
         />
-        <p class="text-xl font-bold">{{ currentStreak }}</p>
+        <div v-if="!isMounted" class="mx-auto h-7 w-12 animate-pulse bg-secondary/30 rounded-md mb-1" />
+        <p v-else class="text-xl font-bold">{{ currentStreak }}</p>
         <p class="text-[10px] text-muted-foreground">Day Streak</p>
       </div>
       <div class="rounded-2xl border border-border/60 bg-card p-3 text-center">
-        <p class="text-xl font-bold">{{ completionDays }}/7</p>
+        <div v-if="!isMounted" class="mx-auto h-7 w-12 animate-pulse bg-secondary/30 rounded-md mb-1" />
+        <p v-else class="text-xl font-bold">{{ completionDays }}/7</p>
         <p class="text-[10px] text-muted-foreground">Goals This Week</p>
       </div>
       <div class="rounded-2xl border border-border/60 bg-card p-3 text-center">
-        <p class="text-xl font-bold">{{ formatDurationFromMinutes(averageSleepMinutes) }}</p>
+        <div v-if="!isMounted" class="mx-auto h-7 w-16 animate-pulse bg-secondary/30 rounded-md mb-1" />
+        <p v-else class="text-xl font-bold">{{ formatDurationFromMinutes(averageSleepMinutes) }}</p>
         <p class="text-[10px] text-muted-foreground">7-Day Avg</p>
       </div>
     </div>
@@ -171,19 +280,85 @@ const reversedHistory = computed(() => [...weekHistory.value].reverse())
       </template>
     </div>
 
+    <!-- Sleep Regularity Index (SRI) Card -->
+    <div class="mb-4 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <div class="mb-3 flex items-center gap-2">
+        <Activity class="size-5 text-indigo-500" />
+        <h2 class="text-sm font-medium text-muted-foreground">Sleep Regularity (SRI)</h2>
+      </div>
+
+      <div v-if="!isMounted" class="h-28 w-full animate-pulse bg-secondary/10 rounded-2xl p-4 border border-border/40" />
+
+      <template v-else>
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex-1">
+            <div class="mb-1 flex items-baseline gap-2">
+              <p class="text-3xl font-bold text-indigo-500">
+                {{ regularityIndex }}
+              </p>
+              <span class="text-sm text-muted-foreground">/ 100</span>
+            </div>
+            
+            <div class="mt-2">
+              <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold" :class="sriInfo.colorClass">
+                {{ sriInfo.label }}
+              </span>
+            </div>
+          </div>
+          
+          <!-- Circular gauge indicator -->
+          <div class="relative flex size-16 items-center justify-center rounded-full bg-indigo-500/5">
+            <svg class="size-full -rotate-90">
+              <circle
+                cx="32"
+                cy="32"
+                r="28"
+                class="stroke-muted/30"
+                stroke-width="4"
+                fill="none"
+              />
+              <circle
+                cx="32"
+                cy="32"
+                r="28"
+                class="stroke-indigo-500 transition-all duration-500"
+                stroke-width="4"
+                fill="none"
+                :stroke-dasharray="175.9"
+                :stroke-dashoffset="175.9 - (175.9 * regularityIndex) / 100"
+              />
+            </svg>
+            <span class="absolute text-xs font-bold text-indigo-500">{{ regularityIndex }}%</span>
+          </div>
+        </div>
+
+        <p class="mt-3 text-xs text-muted-foreground leading-relaxed">
+          {{ sriInfo.description }}
+        </p>
+      </template>
+    </div>
+
     <!-- 30-Day Trend Chart -->
     <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
       <h2 class="mb-1 text-sm font-medium text-muted-foreground">30-Day Trend</h2>
       <p class="mb-3 text-xs text-muted-foreground/60">Dashed line = daily goal</p>
 
-      <!-- Empty state -->
-      <div v-if="!hasAnyData" class="flex flex-col items-center justify-center py-8 text-center">
-        <div class="mb-2 text-3xl">📊</div>
-        <p class="text-sm font-medium text-muted-foreground">No sleep data yet</p>
-        <p class="text-xs text-muted-foreground/70">Start logging sleep sessions to see your trend here</p>
+      <!-- Loading skeleton -->
+      <div v-if="!isMounted" class="h-28 w-full animate-pulse flex flex-col justify-end bg-secondary/10 rounded-2xl p-3 border border-border/40">
+        <div class="flex items-end gap-1.5 h-full w-full">
+          <div v-for="i in 15" :key="i" class="bg-muted-foreground/20 rounded-full w-full" :style="{ height: `${20 + (i % 3) * 20}%` }"></div>
+        </div>
       </div>
 
       <template v-else>
+        <!-- Empty state -->
+        <div v-if="!hasAnyData" class="flex flex-col items-center justify-center py-8 text-center">
+          <div class="mb-2 text-3xl">📊</div>
+          <p class="text-sm font-medium text-muted-foreground">No sleep data yet</p>
+          <p class="text-xs text-muted-foreground/70">Start logging sleep sessions to see your trend here</p>
+        </div>
+
+        <template v-else>
       <svg
         :viewBox="`0 0 ${trendChart.W} ${trendChart.H}`"
         class="w-full"
@@ -242,19 +417,117 @@ const reversedHistory = computed(() => [...weekHistory.value].reverse())
         <span>Today</span>
       </div>
       </template>
+      </template>
+    </div>
+
+    <!-- 30-Day Sleep Quality Trend -->
+    <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <div class="mb-3 flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+            <Sparkles class="size-4 text-violet-500" />
+            30-Day Quality Trend
+          </h2>
+          <p class="text-xs text-muted-foreground/60">Average daily sleep rating (1–5)</p>
+        </div>
+        <div v-if="isMounted && average30DayQuality" class="text-right">
+          <div class="flex items-center justify-end gap-1 text-lg font-bold text-violet-500">
+            <span>{{ average30DayQuality.score }}</span>
+            <span class="text-xs text-muted-foreground">/5</span>
+            <span class="ml-1 text-sm">{{ average30DayQuality.emoji }}</span>
+          </div>
+          <p class="text-[10px] text-muted-foreground font-medium">{{ average30DayQuality.label }}</p>
+        </div>
+        <div v-else-if="!isMounted" class="h-8 w-16 animate-pulse bg-secondary/30 rounded-md" />
+      </div>
+
+      <!-- Loading skeleton -->
+      <div v-if="!isMounted" class="h-28 w-full animate-pulse flex flex-col justify-end bg-secondary/10 rounded-2xl p-3 border border-border/40">
+        <div class="flex items-end gap-1.5 h-full w-full">
+          <div v-for="i in 15" :key="i" class="bg-muted-foreground/20 rounded-full w-full" :style="{ height: `${45 + (i % 4) * 15}%` }"></div>
+        </div>
+      </div>
+
+      <template v-else>
+        <!-- Empty state -->
+        <div v-if="!qualityTrendChart.hasData" class="flex flex-col items-center justify-center py-8 text-center">
+          <div class="mb-2 text-3xl">😴</div>
+          <p class="text-sm font-medium text-muted-foreground">No quality ratings yet</p>
+          <p class="text-xs text-muted-foreground/70">Rate your sleep quality when logging to see your trend</p>
+        </div>
+
+        <template v-else>
+      <svg
+        :viewBox="`0 0 ${qualityTrendChart.W} ${qualityTrendChart.H}`"
+        class="w-full"
+        preserveAspectRatio="none"
+        style="height: 100px;"
+      >
+        <!-- Gradient fill -->
+        <defs>
+          <linearGradient id="qualityGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgb(139, 92, 246)" stop-opacity="0.25" />
+            <stop offset="100%" stop-color="rgb(139, 92, 246)" stop-opacity="0.02" />
+          </linearGradient>
+        </defs>
+
+        <!-- Area fill -->
+        <polygon
+          :points="qualityTrendChart.areaPoints"
+          fill="url(#qualityGradient)"
+        />
+
+        <!-- Trend line -->
+        <polyline
+          :points="qualityTrendChart.linePoints"
+          fill="none"
+          stroke="rgb(139, 92, 246)"
+          stroke-width="2"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+        />
+
+        <!-- Data point dots -->
+        <circle
+          v-for="(pt, i) in qualityTrendChart.points"
+          :key="i"
+          :cx="pt.x"
+          :cy="pt.y"
+          r="3"
+          fill="rgb(139, 92, 246)"
+          stroke="hsl(var(--card))"
+          stroke-width="1.5"
+          opacity="0.9"
+        />
+      </svg>
+      <div class="mt-2 flex justify-between text-[10px] text-muted-foreground">
+        <span>30 days ago</span>
+        <span>Today</span>
+      </div>
+      </template>
+      </template>
     </div>
 
     <!-- 7-Day Bar Chart -->
     <div class="mb-6 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
       <h2 class="mb-4 text-sm font-medium text-muted-foreground">Last 7 Days</h2>
 
-      <!-- Empty state -->
-      <div v-if="!hasWeekData" class="flex flex-col items-center justify-center py-8 text-center">
-        <div class="mb-2 text-3xl">🌙</div>
-        <p class="text-sm font-medium text-muted-foreground">No sessions this week</p>
-        <p class="text-xs text-muted-foreground/70">Log your first sleep block to track weekly progress</p>
+      <!-- Loading skeleton -->
+      <div v-if="!isMounted" class="flex h-40 items-end justify-between gap-2 border border-border/40 bg-secondary/10 rounded-2xl p-4 animate-pulse">
+        <div v-for="i in 7" :key="i" class="flex flex-col items-center gap-2 flex-1 h-full justify-end">
+          <div class="w-full bg-muted-foreground/20 rounded-xl" :style="{ height: `${30 + (i % 3) * 20}%` }"></div>
+          <div class="h-3 w-8 bg-muted-foreground/20 rounded-md"></div>
+        </div>
       </div>
-      <div v-else class="flex h-40 items-end justify-between gap-2">
+
+      <template v-else>
+        <!-- Empty state -->
+        <div v-if="!hasWeekData" class="flex flex-col items-center justify-center py-8 text-center">
+          <div class="mb-2 text-3xl">🌙</div>
+          <p class="text-sm font-medium text-muted-foreground">No sessions this week</p>
+          <p class="text-xs text-muted-foreground/70">Log your first sleep block to track weekly progress</p>
+        </div>
+        <div v-else class="flex h-40 items-end justify-between gap-2">
         <div
           v-for="day in weeklyChart"
           :key="day.date"
@@ -273,6 +546,7 @@ const reversedHistory = computed(() => [...weekHistory.value].reverse())
           </div>
         </div>
       </div>
+      </template>
     </div>
 
     <!-- Insights Cards -->

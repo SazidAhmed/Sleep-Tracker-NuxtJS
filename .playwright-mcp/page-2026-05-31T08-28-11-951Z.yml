@@ -1,0 +1,120 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - status [ref=e152]: Sleep Tracker
+    - generic [ref=e4]:
+      - main [ref=e5]:
+        - generic [ref=e153]:
+          - generic [ref=e155]:
+            - img [ref=e157]
+            - generic [ref=e159]: Sleep Timer
+          - generic [ref=e160]:
+            - generic [ref=e161]:
+              - img [ref=e162]
+              - generic [ref=e164]:
+                - paragraph [ref=e165]: 00:00:00
+                - paragraph [ref=e166]: Ready to track
+            - button "Start Sleep" [ref=e167]:
+              - img
+              - text: Start Sleep
+          - generic [ref=e169]:
+            - generic [ref=e170]:
+              - img [ref=e172]
+              - heading "Wake-up Alarm" [level=2] [ref=e179]
+            - generic [ref=e180]:
+              - button "Settings" [ref=e181]
+              - switch "Toggle wake-up alarm" [ref=e182] [cursor=pointer]
+          - generic [ref=e184]:
+            - generic [ref=e185]:
+              - generic [ref=e186]: Today's Progress
+              - generic [ref=e187]: 0%
+            - generic [ref=e189]:
+              - generic [ref=e190]: 0m done
+              - generic [ref=e191]: 8h left
+          - generic [ref=e192]:
+            - generic [ref=e193]:
+              - generic [ref=e194]:
+                - img [ref=e196]
+                - heading "Quick Templates" [level=2] [ref=e198]
+              - button "New" [ref=e199]:
+                - img
+                - text: New
+            - generic [ref=e200]:
+              - paragraph [ref=e201]: No templates yet
+              - paragraph [ref=e202]: Create quick-log templates for common sleep patterns
+            - button "Save current times as template" [ref=e203]:
+              - img [ref=e204]
+              - text: Save current times as template
+          - generic [ref=e208]:
+            - generic [ref=e209]:
+              - img [ref=e211]
+              - heading "Log Sleep Manually" [level=2] [ref=e212]
+            - generic [ref=e213]:
+              - generic [ref=e214]:
+                - text: Sleep Start
+                - textbox "Sleep Start" [ref=e215]: 2026-05-31T12:58
+              - generic [ref=e216]:
+                - text: Wake Time
+                - textbox "Wake Time" [ref=e217]: 2026-05-31T14:28
+              - generic [ref=e218]:
+                - text: Sleep Quality
+                - radiogroup "Sleep Quality Rating" [ref=e219]:
+                  - radio "Poor" [ref=e220]: 😫
+                  - radio "Fair" [ref=e221]: 😕
+                  - radio "Average" [ref=e222]: 😐
+                  - radio "Good" [ref=e223]: 😊
+                  - radio "Excellent" [ref=e224]: 😴
+              - generic [ref=e225]:
+                - text: Tags
+                - group "Sleep tags" [ref=e226]:
+                  - button "Toggle tag Nap" [ref=e227]: Nap
+                  - button "Toggle tag Deep Sleep" [ref=e228]: Deep Sleep
+                  - button "Toggle tag Light Sleep" [ref=e229]: Light Sleep
+                  - button "Toggle tag Interrupted" [ref=e230]: Interrupted
+                  - button "Toggle tag Good Dreams" [ref=e231]: Good Dreams
+                  - button "Toggle tag Restless" [ref=e232]: Restless
+                  - button "Toggle tag Recovery" [ref=e233]: Recovery
+                  - button "Toggle tag Sick" [ref=e234]: Sick
+                  - button "Toggle tag Travel" [ref=e235]: Travel
+              - generic [ref=e236]:
+                - text: Notes
+                - textbox "Notes" [ref=e237]:
+                  - /placeholder: How did you sleep?
+              - button "Save Session" [ref=e238]:
+                - text: Save Session
+                - img
+      - navigation [ref=e102]:
+        - generic [ref=e103]:
+          - button "Timer" [active] [ref=e104]:
+            - img [ref=e106]
+            - generic [ref=e109]: Timer
+          - button "Today" [ref=e110]:
+            - img [ref=e112]
+            - generic [ref=e118]: Today
+          - button "History" [ref=e119]:
+            - img [ref=e121]
+            - generic [ref=e123]: History
+          - button "Heat" [ref=e124]:
+            - img [ref=e126]
+            - generic [ref=e128]: Heat
+          - button "Tips" [ref=e129]:
+            - img [ref=e131]
+            - generic [ref=e134]: Tips
+          - button "Calendar" [ref=e135]:
+            - img [ref=e137]
+            - generic [ref=e139]: Calendar
+          - button "More" [ref=e140]:
+            - img [ref=e142]
+            - generic [ref=e146]: More
+          - button "Dark" [ref=e147]:
+            - img [ref=e240]
+            - generic [ref=e242]: Dark
+  - generic:
+    - img
+  - generic [ref=e243]:
+    - button "Toggle Nuxt DevTools" [ref=e244] [cursor=pointer]:
+      - img [ref=e245]
+    - generic "Page load time" [ref=e248]:
+      - generic [ref=e249]: "181"
+      - generic [ref=e250]: ms
+    - button "Toggle Component Inspector" [ref=e252] [cursor=pointer]:
+      - img [ref=e253]

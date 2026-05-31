@@ -2,7 +2,7 @@
 import { MoonStar, Play, Square, X, Plus, ChevronRight, Save, Trash2, Clock, Sparkles, Zap, Moon, Sunrise, AlarmClock, Bell, Volume2, Brain } from 'lucide-vue-next'
 import { getQualityLabel, type SessionTemplate, calculateOptimalWakeTimes, getRecommendedWakeTime, type OptimalWakeTime, type AlarmType } from '@/lib/sleep'
 import { useSleepData } from '@/composables/useSleepData'
-import { toDateTimeLocalValue, SLEEP_TAGS, getQualityEmoji } from '@/lib/sleep'
+import { toDateTimeLocalValue, getQualityEmoji } from '@/lib/sleep'
 import { useHaptics } from '@/composables/useHaptics'
 
 definePageMeta({
@@ -34,6 +34,7 @@ const {
   deleteTemplate,
   useTemplate,
   formatDurationFromMinutes,
+  customTags,
 } = useSleepData()
 
 const haptics = useHaptics()
@@ -168,11 +169,49 @@ function handleCancelSleep() {
   haptics.light()
 }
 
+// Smooth ticking timer state
+const localNow = ref(new Date())
+let animationFrameId: number | null = null
+
+function updateLocalTime() {
+  localNow.value = new Date()
+  if (activeSessionStart.value) {
+    animationFrameId = requestAnimationFrame(updateLocalTime)
+  }
+}
+
+watch(() => activeSessionStart.value, (start) => {
+  if (start) {
+    if (!animationFrameId) {
+      updateLocalTime()
+    }
+  } else {
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId)
+      animationFrameId = null
+    }
+  }
+}, { immediate: true })
+
+onBeforeUnmount(() => {
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId)
+  }
+})
+
+const realTimeDurationMs = computed(() => {
+  if (!activeSessionStart.value) return 0
+  const start = new Date(activeSessionStart.value).getTime()
+  return Math.max(0, localNow.value.getTime() - start)
+})
+
 // Format timer display
 const timerDisplay = computed(() => {
-  const hours = Math.floor(activeSessionMinutes.value / 60)
-  const minutes = activeSessionMinutes.value % 60
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+  const totalSeconds = Math.floor(realTimeDurationMs.value / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
 })
 
 // SVG arc for the timer ring
@@ -181,14 +220,61 @@ const ARC_R = 88
 const ARC_CIRCUMFERENCE = 2 * Math.PI * ARC_R
 
 const arcProgress = computed(() => {
-  const goalMinutes = todaySummary.value.goalMinutes || 480
-  const fraction = Math.min(activeSessionMinutes.value / goalMinutes, 1)
+  const goalMs = (todaySummary.value.goalMinutes || 480) * 60 * 1000
+  const fraction = Math.min(realTimeDurationMs.value / goalMs, 1)
   return fraction
 })
 
 const arcDashOffset = computed(() => {
   return ARC_CIRCUMFERENCE * (1 - arcProgress.value)
 })
+
+// Keyboard arrow navigation for quality emojis
+function handleQualityKeydown(e: KeyboardEvent, formType: 'manual' | 'template') {
+  const current = formType === 'manual' ? sessionForm.quality : templateForm.defaultQuality
+  let next: number | undefined = undefined
+
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    next = current === undefined ? 1 : Math.min(current + 1, 5)
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    next = current === undefined ? 5 : Math.max(current - 1, 1)
+  } else if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault()
+    return
+  }
+
+  if (next !== undefined) {
+    e.preventDefault()
+    if (formType === 'manual') {
+      sessionForm.quality = next as 1 | 2 | 3 | 4 | 5
+    } else {
+      templateForm.defaultQuality = next as 1 | 2 | 3 | 4 | 5
+    }
+    nextTick(() => {
+      const selector = formType === 'manual' ? '.manual-quality-btn' : '.template-quality-btn'
+      const buttons = document.querySelectorAll<HTMLButtonElement>(selector)
+      buttons[next! - 1]?.focus()
+    })
+  }
+}
+
+function handleSelectableGroupKeydown(e: KeyboardEvent) {
+  const arrowKeys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp']
+  if (!arrowKeys.includes(e.key)) return
+  const target = e.target as HTMLElement
+  const group = target.closest('[role="group"], [role="radiogroup"]') as HTMLElement | null
+  if (!group) return
+  const buttons = Array.from(group.querySelectorAll<HTMLButtonElement>('button'))
+  const index = buttons.indexOf(target as HTMLButtonElement)
+  if (index === -1) return
+
+  e.preventDefault()
+  const nextIndex = e.key === 'ArrowRight' || e.key === 'ArrowDown'
+    ? (index + 1) % buttons.length
+    : (index - 1 + buttons.length) % buttons.length
+
+  buttons[nextIndex]?.focus()
+}
 
 // Optimal wake time suggestions
 const showOptimalWakeTimes = ref(false)
@@ -523,6 +609,9 @@ const showAlarmSettings = ref(false)
           <button
             class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors"
             :class="alarmConfig.enabled ? 'bg-primary' : 'bg-secondary'"
+            aria-label="Toggle wake-up alarm"
+            :aria-checked="alarmConfig.enabled"
+            role="switch"
             @click="setAlarmEnabled(!alarmConfig.enabled)"
           >
             <span
@@ -612,6 +701,9 @@ const showAlarmSettings = ref(false)
           <button
             class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors"
             :class="alarmConfig.soundEnabled ? 'bg-primary' : 'bg-secondary'"
+            aria-label="Toggle alarm sound"
+            :aria-checked="alarmConfig.soundEnabled"
+            role="switch"
             @click="alarmConfig.soundEnabled = !alarmConfig.soundEnabled"
           >
             <span
@@ -736,12 +828,21 @@ const showAlarmSettings = ref(false)
           </div>
           <div>
             <label class="mb-1 block text-xs font-medium text-muted-foreground">Default Quality (optional)</label>
-            <div class="flex gap-1">
+            <div
+              class="flex gap-1"
+              role="radiogroup"
+              aria-label="Default Sleep Quality"
+              @keydown="handleQualityKeydown($event, 'template')"
+            >
               <button
                 v-for="n in 5"
                 :key="n"
-                class="flex-1 rounded-lg py-2 text-lg transition-all"
+                class="flex-1 rounded-lg py-2 text-lg transition-all template-quality-btn"
                 :class="templateForm.defaultQuality === n ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-secondary'"
+                role="radio"
+                :aria-checked="templateForm.defaultQuality === n"
+                :aria-label="getQualityLabel(n)"
+                :tabindex="templateForm.defaultQuality === n || (!templateForm.defaultQuality && n === 1) ? 0 : -1"
                 @click="templateForm.defaultQuality = templateForm.defaultQuality === n ? undefined : n as 1 | 2 | 3 | 4 | 5"
               >
                 {{ getQualityEmoji(n) }}
@@ -750,12 +851,13 @@ const showAlarmSettings = ref(false)
           </div>
           <div>
             <label class="mb-1 block text-xs font-medium text-muted-foreground">Default Tags (optional)</label>
-            <div class="flex flex-wrap gap-1">
+            <div class="flex flex-wrap gap-1" role="group" aria-label="Template tags" @keydown="handleSelectableGroupKeydown">
               <button
-                v-for="tag in SLEEP_TAGS"
+                v-for="tag in customTags"
                 :key="tag"
                 class="rounded-full px-2 py-1 text-xs transition-all"
                 :class="templateForm.defaultTags.includes(tag) ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-secondary'"
+                :aria-label="`Toggle default tag ${tag}`"
                 @click="templateForm.defaultTags.includes(tag) ? templateForm.defaultTags.splice(templateForm.defaultTags.indexOf(tag), 1) : templateForm.defaultTags.push(tag)"
               >
                 {{ tag }}
@@ -807,6 +909,7 @@ const showAlarmSettings = ref(false)
           </button>
           <button
             class="absolute right-1.5 top-1.5 rounded-full p-1 text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+            :aria-label="`Delete template ${template.name}`"
             @click.stop="handleDeleteTemplate(template.id)"
           >
             <Trash2 class="size-3" />
@@ -854,12 +957,21 @@ const showAlarmSettings = ref(false)
         <!-- Quality Rating -->
         <div class="space-y-1.5">
           <label class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sleep Quality</label>
-          <div class="flex gap-2">
+          <div
+            class="flex gap-2"
+            role="radiogroup"
+            aria-label="Sleep Quality Rating"
+            @keydown="handleQualityKeydown($event, 'manual')"
+          >
             <button
               v-for="n in 5"
               :key="n"
-              class="flex-1 rounded-xl py-3 text-2xl transition-all"
+              class="flex-1 rounded-xl py-3 text-2xl transition-all manual-quality-btn"
               :class="sessionForm.quality === n ? 'bg-primary text-primary-foreground' : 'bg-secondary/40 hover:bg-secondary'"
+              role="radio"
+              :aria-checked="sessionForm.quality === n"
+              :aria-label="getQualityLabel(n)"
+              :tabindex="sessionForm.quality === n || (!sessionForm.quality && n === 1) ? 0 : -1"
               @click="sessionForm.quality = sessionForm.quality === n ? undefined : n as 1 | 2 | 3 | 4 | 5"
             >
               {{ getQualityEmoji(n) }}
@@ -873,12 +985,13 @@ const showAlarmSettings = ref(false)
         <!-- Tags -->
         <div class="space-y-1.5">
           <label class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tags</label>
-          <div class="flex flex-wrap gap-2">
+          <div class="flex flex-wrap gap-2" role="group" aria-label="Sleep tags" @keydown="handleSelectableGroupKeydown">
             <button
-              v-for="tag in SLEEP_TAGS"
+              v-for="tag in customTags"
               :key="tag"
               class="rounded-full px-3 py-1.5 text-xs font-medium transition-all"
               :class="sessionForm.tags.includes(tag) ? 'bg-primary text-primary-foreground' : 'bg-secondary/40 text-muted-foreground hover:bg-secondary'"
+              :aria-label="`Toggle tag ${tag}`"
               @click="sessionForm.tags.includes(tag) ? sessionForm.tags.splice(sessionForm.tags.indexOf(tag), 1) : sessionForm.tags.push(tag)"
             >
               {{ tag }}

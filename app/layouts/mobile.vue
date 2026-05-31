@@ -2,12 +2,11 @@
 import { Timer, Sun, BarChart3, Calendar, MoreHorizontal, Moon, SunMedium, Flame, Sparkles } from 'lucide-vue-next'
 
 const route = useRoute()
-const router = useRouter()
 const colorMode = useColorMode()
 
 const tabs = [
   { name: 'Timer', path: '/timer', icon: Timer },
-  { name: 'Today', path: '/', icon: Sun },
+  { name: 'Today', path: '/today', aliases: ['/'], icon: Sun },
   { name: 'History', path: '/history', icon: BarChart3 },
   { name: 'Heat', path: '/heatmap', icon: Flame },
   { name: 'Tips', path: '/recommendations', icon: Sparkles },
@@ -22,7 +21,7 @@ const transitionName = ref('page-slide-left')
 
 const activeTab = computed(() => {
   const currentPath = route.path
-  return tabs.find(tab => tab.path === currentPath)?.name ?? 'Today'
+  return tabs.find(tab => tab.path === currentPath || tab.aliases?.includes(currentPath))?.name ?? 'Today'
 })
 
 const isDark = computed(() => colorMode.value === 'dark')
@@ -37,7 +36,6 @@ function navigateTo(path: string) {
   // Determine slide direction based on tab position
   transitionName.value = nextIndex >= currentIndex ? 'page-slide-left' : 'page-slide-right'
   previousTabIndex.value = nextIndex
-  router.push(path)
 }
 
 useSeoMeta({
@@ -51,16 +49,19 @@ useSeoMeta({
     <!-- Main Content with page transition -->
     <main class="mx-auto w-full max-w-md">
       <Transition :name="transitionName" mode="out-in">
-        <slot :key="route.path" />
+        <div :key="route.fullPath">
+          <slot />
+        </div>
       </Transition>
     </main>
 
     <!-- Bottom Navigation -->
     <nav class="fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/95 backdrop-blur-md">
       <div class="mx-auto flex h-16 w-full max-w-md items-center justify-around px-1">
-        <button
+        <NuxtLink
           v-for="tab in tabs"
           :key="tab.path"
+          :to="tab.path"
           class="flex flex-col items-center justify-center gap-0.5 px-2 py-2 transition-all duration-200"
           :class="activeTab === tab.name
             ? 'text-primary'
@@ -79,7 +80,7 @@ useSeoMeta({
           >
             {{ tab.name }}
           </span>
-        </button>
+        </NuxtLink>
 
         <!-- Dark Mode Toggle -->
         <button
