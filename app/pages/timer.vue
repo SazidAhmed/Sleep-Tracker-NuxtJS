@@ -446,9 +446,9 @@ const showAlarmSettings = ref(false)
         </svg>
 
         <!-- Inner content -->
-        <div class="relative z-10 text-center">
+        <div class="relative z-10 flex flex-col items-center justify-center text-center">
           <p
-            class="text-5xl font-bold tracking-tight transition-colors duration-300"
+            class="text-4xl font-bold tracking-tighter tabular-nums transition-colors duration-300"
             :class="activeSessionStart ? 'text-primary' : 'text-foreground'"
           >
             {{ timerDisplay }}
