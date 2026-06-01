@@ -88,3 +88,8 @@ export {
   validateAndRepairData,
   exportSessionsToCSV,
 } from './alarm'
+
+export {
+  migrateSleepData,
+  CURRENT_DATA_VERSION,
+} from './migration'

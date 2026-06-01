@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { MoonStar, Clock, Zap, Flame, ArrowRight, Lightbulb, Play, Plus, History, BarChart3, X, Sparkles, Download, BookOpen } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
+import { useSleepAnalytics } from '@/composables/useSleepAnalytics'
 import { getQualityEmoji, getQualityLabel } from '@/lib/sleep'
 import { useLongPress } from '@/composables/useLongPress'
 import { useHaptics } from '@/composables/useHaptics'
@@ -17,14 +18,17 @@ const {
   latestSession,
   averageSleepMinutes,
   currentStreak,
-  recommendations,
-  sleepScore,
   formatDurationFromMinutes,
   formatDateLabel,
   formatTimeLabel,
   getSessionDurationMinutes,
   refreshNow,
 } = useSleepData()
+
+const {
+  recommendations,
+  sleepScore,
+} = useSleepAnalytics()
 
 function getGradeBadgeClass(grade: string) {
   switch (grade) {

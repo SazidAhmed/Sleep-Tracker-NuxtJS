@@ -28,6 +28,9 @@ export interface SleepSettings {
   weekendGoalHours?: number
   useSplitGoals?: boolean
   anchorTime: string
+  defaultLatencyMinutes?: number
+  defaultAwakeMinutes?: number
+  version?: number
 }
 
 export type AlarmType = 'sound' | 'notification' | 'smart'

@@ -23,6 +23,8 @@ export function summarizeSleepDay(
   const relatedSessions = sessions.filter((session) => {
     const start = new Date(session.start).getTime()
     const end = new Date(session.end).getTime()
+    // A session is related if its range overlaps with [dayStart, dayEnd)
+    // We check if session ends after dayStart AND starts before dayEnd
     return Number.isFinite(start) && Number.isFinite(end) && end > dayStart && start < dayEnd
   })
 

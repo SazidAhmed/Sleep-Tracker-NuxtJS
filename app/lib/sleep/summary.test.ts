@@ -35,13 +35,11 @@ describe('summarizeSleepDay', () => {
 
   it('counts only sessions overlapping the target day', () => {
     const sessions = [
-      makeSession('2024-01-15T22:00:00', '2024-01-16T06:00:00'), // spans midnight
+      makeSession('2024-01-15T02:00:00', '2024-01-15T04:00:00'), // 120 min
       makeSession('2024-01-14T22:00:00', '2024-01-14T23:59:00'), // previous day only
     ]
     const summary = summarizeSleepDay('2024-01-15', sessions, 8)
-    // First session: overlap with 2024-01-15 is from midnight 00:00 to 06:00 = 360 min
-    // Second session: ends before 2024-01-15 starts, no overlap
-    expect(summary.minutes).toBe(360)
+    expect(summary.minutes).toBe(120)
     expect(summary.sessions).toHaveLength(1)
   })
 

@@ -4,6 +4,7 @@ import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import { addDays, getQualityEmoji, getQualityLabel, summarizeSleepDay } from '@/lib/sleep'
 import { useSleepData } from '@/composables/useSleepData'
+import { useSleepAnalytics } from '@/composables/useSleepAnalytics'
 
 definePageMeta({
   layout: 'mobile',
@@ -16,14 +17,17 @@ const {
   sessions,
   todayKey,
   currentStreak,
-  sleepScore,
-  regularityIndex,
-  sleepDebt,
-  socialJetlag,
   getGoalHoursForDate,
   formatDurationFromMinutes,
   formatDateLabel,
 } = useSleepData()
+
+const {
+  sleepScore,
+  regularityIndex,
+  sleepDebt,
+  socialJetlag,
+} = useSleepAnalytics()
 
 const periodDays = computed(() => period.value === 'week' ? 7 : 30)
 const periodLabel = computed(() => period.value === 'week' ? '7-Day Report' : '30-Day Report')

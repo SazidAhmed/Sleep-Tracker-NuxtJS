@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Sparkles, AlertCircle, Clock, Target, Briefcase, Zap, ChevronRight, X } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
+import { useSleepAnalytics } from '@/composables/useSleepAnalytics'
 import { useLocalStorage } from '@vueuse/core'
 
 definePageMeta({
@@ -8,8 +9,12 @@ definePageMeta({
 })
 
 const {
-  recommendations,
+  formatDurationFromMinutes,
 } = useSleepData()
+
+const {
+  recommendations,
+} = useSleepAnalytics()
 
 const router = useRouter()
 

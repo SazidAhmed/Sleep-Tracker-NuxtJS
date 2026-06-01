@@ -208,7 +208,6 @@ export function generateRecommendations(
 
 export function calculateSleepEfficiency(
   sessions: SleepSession[],
-  timeInBedMinutes: number,
   latencyMinutes = 15,
   awakeMinutes = 30,
 ): SleepEfficiencyData[] {
