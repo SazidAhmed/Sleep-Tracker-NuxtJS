@@ -15,9 +15,7 @@ export default defineNuxtConfig({
         'lucide-vue-next',
         '@vueuse/core',
         'clsx',
-        'tailwind-merge',
-        '@vue/devtools-core',
-        '@vue/devtools-kit'
+        'tailwind-merge'
       ]
     }
   },

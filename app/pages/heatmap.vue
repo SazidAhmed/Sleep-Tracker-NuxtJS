@@ -129,7 +129,7 @@ function handleDayClick(date: string) {
         <div class="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <Flame class="size-5" />
         </div>
-        <span class="text-lg font-semibold">Sleep Heat Map</span>
+        <h1 class="text-lg font-semibold">Sleep Heat Map</h1>
       </div>
     </header>
 

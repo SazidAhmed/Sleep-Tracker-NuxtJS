@@ -195,9 +195,9 @@ onMounted(() => {
     <header class="mb-6 flex items-center justify-between">
       <div class="flex items-center gap-2">
         <div class="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <BarChart3 class="size-5" />
+          <BarChart3 class="size-5" aria-hidden="true" />
         </div>
-        <span class="text-lg font-semibold">History</span>
+        <h1 class="text-lg font-semibold">History</h1>
       </div>
     </header>
 
@@ -270,11 +270,13 @@ onMounted(() => {
             :is="sleepDebt.recentTrend === 'improving' ? ArrowDownRight : sleepDebt.recentTrend === 'worsening' ? ArrowUpRight : Minus"
             class="size-4"
             :class="sleepDebt.recentTrend === 'improving' ? 'text-green-500' : sleepDebt.recentTrend === 'worsening' ? 'text-red-500' : 'text-muted-foreground'"
+            aria-hidden="true"
           />
           <span
             :class="sleepDebt.recentTrend === 'improving' ? 'text-green-500' : sleepDebt.recentTrend === 'worsening' ? 'text-red-500' : 'text-muted-foreground'"
           >
             {{ sleepDebt.recentTrend === 'improving' ? 'Debt decreasing - great progress!' : sleepDebt.recentTrend === 'worsening' ? 'Debt increasing - prioritize rest' : 'Debt stable' }}
+            <span class="sr-only">(Trend: {{ sleepDebt.recentTrend }})</span>
           </span>
         </div>
       </template>
@@ -359,12 +361,14 @@ onMounted(() => {
         </div>
 
         <template v-else>
-      <svg
-        :viewBox="`0 0 ${trendChart.W} ${trendChart.H}`"
-        class="w-full"
-        preserveAspectRatio="none"
-        style="height: 100px;"
-      >
+        <svg
+          :viewBox="`0 0 ${trendChart.W} ${trendChart.H}`"
+          class="w-full"
+          preserveAspectRatio="none"
+          style="height: 100px;"
+          role="img"
+          :aria-label="`30-day sleep duration trend chart. Goal line shown as dashed.`"
+        >
         <!-- Gradient fill -->
         <defs>
           <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
@@ -457,12 +461,14 @@ onMounted(() => {
         </div>
 
         <template v-else>
-      <svg
-        :viewBox="`0 0 ${qualityTrendChart.W} ${qualityTrendChart.H}`"
-        class="w-full"
-        preserveAspectRatio="none"
-        style="height: 100px;"
-      >
+        <svg
+          :viewBox="`0 0 ${qualityTrendChart.W} ${qualityTrendChart.H}`"
+          class="w-full"
+          preserveAspectRatio="none"
+          style="height: 100px;"
+          role="img"
+          aria-label="30-day sleep quality trend chart. Y-axis: quality 1 (bottom) to 5 (top)."
+        >
         <!-- Gradient fill -->
         <defs>
           <linearGradient id="qualityGradient" x1="0" y1="0" x2="0" y2="1">
@@ -625,6 +631,7 @@ onMounted(() => {
         <div class="rounded-xl p-3" :class="socialJetlag.severity === 'none' ? 'bg-green-500/10' : socialJetlag.severity === 'mild' ? 'bg-yellow-500/10' : socialJetlag.severity === 'moderate' ? 'bg-orange-500/10' : 'bg-red-500/10'">
           <p class="text-xs" :class="socialJetlag.severity === 'none' ? 'text-green-600' : socialJetlag.severity === 'mild' ? 'text-yellow-600' : socialJetlag.severity === 'moderate' ? 'text-orange-600' : 'text-red-600'">
             {{ socialJetlag.severity === 'none' ? '✓ Great consistency! Your sleep schedule is consistent.' : socialJetlag.severity === 'mild' ? '⚠ Mild jetlag. Try to keep closer schedules.' : socialJetlag.severity === 'moderate' ? '⚠ Moderate jetlag. This can affect your health.' : '⚠ Severe jetlag. Consider adjusting your routine.' }}
+            <span class="sr-only">(Severity: {{ socialJetlag.severity }})</span>
           </p>
         </div>
       </template>

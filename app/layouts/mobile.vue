@@ -1,42 +1,24 @@
 <script setup lang="ts">
-import { Timer, Sun, BarChart3, Calendar, MoreHorizontal, Moon, SunMedium, Flame, Sparkles } from 'lucide-vue-next'
+import { Timer, Sun, BarChart3, Calendar, MoreHorizontal } from 'lucide-vue-next'
 
 const route = useRoute()
-const colorMode = useColorMode()
 
+// 5 core tabs — Heat Map, Tips, and Dark Mode moved to the More page (MD3: max 5 tabs)
 const tabs = [
   { name: 'Timer', path: '/timer', icon: Timer },
   { name: 'Today', path: '/today', aliases: ['/'], icon: Sun },
   { name: 'History', path: '/history', icon: BarChart3 },
-  { name: 'Heat', path: '/heatmap', icon: Flame },
-  { name: 'Tips', path: '/recommendations', icon: Sparkles },
   { name: 'Calendar', path: '/calendar', icon: Calendar },
   { name: 'More', path: '/more', icon: MoreHorizontal },
 ]
 
 // Track tab index for directional slide transitions
 const tabPaths = tabs.map(t => t.path)
-const previousTabIndex = ref(tabPaths.indexOf(route.path))
-const transitionName = ref('page-slide-left')
 
 const activeTab = computed(() => {
   const currentPath = route.path
   return tabs.find(tab => tab.path === currentPath || tab.aliases?.includes(currentPath))?.name ?? 'Today'
 })
-
-const isDark = computed(() => colorMode.value === 'dark')
-
-function toggleDark() {
-  colorMode.preference = isDark.value ? 'light' : 'dark'
-}
-
-function navigateTo(path: string) {
-  const nextIndex = tabPaths.indexOf(path)
-  const currentIndex = tabPaths.indexOf(route.path)
-  // Determine slide direction based on tab position
-  transitionName.value = nextIndex >= currentIndex ? 'page-slide-left' : 'page-slide-right'
-  previousTabIndex.value = nextIndex
-}
 
 useSeoMeta({
   title: 'Sleep Tracker',
@@ -46,13 +28,11 @@ useSeoMeta({
 
 <template>
   <div class="min-h-screen bg-background pb-20">
-    <!-- Main Content with page transition -->
+    <!-- Main Content (Instant) -->
     <main class="mx-auto w-full max-w-md">
-      <Transition :name="transitionName" mode="out-in">
-        <div :key="route.fullPath">
-          <slot />
-        </div>
-      </Transition>
+      <div :key="route.fullPath">
+        <slot />
+      </div>
     </main>
 
     <!-- Bottom Navigation -->
@@ -62,45 +42,22 @@ useSeoMeta({
           v-for="tab in tabs"
           :key="tab.path"
           :to="tab.path"
-          class="flex flex-col items-center justify-center gap-0.5 px-2 py-2 transition-all duration-200"
-          :class="activeTab === tab.name
-            ? 'text-primary'
-            : 'text-muted-foreground hover:text-foreground'"
-          @click="navigateTo(tab.path)"
+          class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2"
+          :class="activeTab === tab.name ? 'text-primary' : 'text-muted-foreground hover:text-foreground'"
         >
-          <div
-            class="flex size-8 items-center justify-center rounded-xl transition-all duration-200"
-            :class="activeTab === tab.name ? 'bg-primary/12' : ''"
+          <div 
+            class="flex size-8 items-center justify-center rounded-xl"
+            :class="activeTab === tab.name ? 'bg-primary/10' : ''"
           >
             <component :is="tab.icon" class="size-5" />
           </div>
           <span
-            class="text-[10px] font-medium transition-all duration-200"
-            :class="activeTab === tab.name ? 'font-semibold' : ''"
+            class="text-[10px] font-medium"
+            :class="activeTab === tab.name ? 'font-semibold tracking-tight' : ''"
           >
             {{ tab.name }}
           </span>
         </NuxtLink>
-
-        <!-- Dark Mode Toggle -->
-        <button
-          class="flex flex-col items-center justify-center gap-0.5 px-2 py-2 text-muted-foreground transition-all duration-200 hover:text-foreground"
-          @click="toggleDark"
-        >
-          <ClientOnly>
-            <div class="flex size-8 items-center justify-center rounded-xl">
-              <Moon v-if="!isDark" class="size-5" />
-              <SunMedium v-else class="size-5" />
-            </div>
-            <span class="text-[10px] font-medium">{{ isDark ? 'Light' : 'Dark' }}</span>
-            <template #fallback>
-              <div class="flex size-8 items-center justify-center rounded-xl">
-                <Moon class="size-5" />
-              </div>
-              <span class="text-[10px] font-medium">Dark</span>
-            </template>
-          </ClientOnly>
-        </button>
       </div>
       <!-- Safe area padding for notched devices -->
       <div class="h-safe-area-inset-bottom bg-background" />
@@ -117,33 +74,5 @@ useSeoMeta({
   .h-safe-area-inset-bottom {
     height: env(safe-area-inset-bottom, 16px);
   }
-}
-
-/* ── Page Slide Transitions ─────────────────────────────── */
-.page-slide-left-enter-active,
-.page-slide-left-leave-active,
-.page-slide-right-enter-active,
-.page-slide-right-leave-active {
-  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Slide left: next tab is to the right */
-.page-slide-left-enter-from {
-  opacity: 0;
-  transform: translateX(24px);
-}
-.page-slide-left-leave-to {
-  opacity: 0;
-  transform: translateX(-24px);
-}
-
-/* Slide right: next tab is to the left */
-.page-slide-right-enter-from {
-  opacity: 0;
-  transform: translateX(-24px);
-}
-.page-slide-right-leave-to {
-  opacity: 0;
-  transform: translateX(24px);
 }
 </style>

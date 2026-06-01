@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { MoreHorizontal, Search, Settings, Bell, Download, Upload, Pencil, Trash2, ChevronLeft, Clock, Copy, Undo2, Tag, Plus, X, BookOpen, FileText, HeartPulse, Cloud, RefreshCw } from 'lucide-vue-next'
-import { useLocalStorage, useVirtualList } from '@vueuse/core'
+import { MoreHorizontal, Search, Settings, Bell, Download, Upload, Pencil, Trash2, ChevronLeft, Clock, Copy, Undo2, Tag, Plus, X, BookOpen, FileText, HeartPulse, Cloud, RefreshCw, Flame, Sparkles, Moon, SunMedium } from 'lucide-vue-next'
+import { useLocalStorage, useVirtualList, useDebounceFn } from '@vueuse/core'
+import { ref, computed, reactive, watch, nextTick, onBeforeUnmount, shallowRef } from 'vue'
 import type { ComponentPublicInstance } from 'vue'
 import { useSleepData } from '@/composables/useSleepData'
 import { useCloudSync } from '@/composables/useCloudSync'
@@ -40,6 +41,10 @@ const {
   addCustomTag,
   removeCustomTag,
 } = useSleepData()
+
+const colorMode = useColorMode()
+const isDark = computed(() => colorMode.value === 'dark')
+function toggleDark() { colorMode.preference = isDark.value ? 'light' : 'dark' }
 
 const router = useRouter()
 const healthIntegrationEnabled = useLocalStorage<boolean>('sleep-tracker-health-integration-enabled', false)
@@ -122,10 +127,11 @@ const filteredSessions = computed(() => {
 })
 
 const shouldVirtualizeSessions = computed(() => filteredSessions.value.length > 40)
-const sessionRowHeights = ref<Record<string, number>>({})
+const sessionRowHeights = shallowRef<Record<string, number>>({})
 const sessionHeightVersion = ref(0)
 const sessionRowElements = new Map<string, HTMLElement>()
-const sessionRowObservers = new Map<string, ResizeObserver>()
+let sessionResizeObserver: ResizeObserver | null = null
+
 const estimatedSessionRowHeight = computed(() => {
   sessionHeightVersion.value
   const heights = Object.values(sessionRowHeights.value).filter(height => height > 0)
@@ -140,41 +146,54 @@ function getVirtualSessionHeight(index: number) {
   return sessionRowHeights.value[session.id] ?? estimatedSessionRowHeight.value
 }
 
+const updateHeightVersion = useDebounceFn(() => {
+  sessionHeightVersion.value++
+}, 50)
+
 function rememberSessionRowHeight(sessionId: string, height: number) {
   const nextHeight = Math.ceil(height)
   if (!nextHeight || sessionRowHeights.value[sessionId] === nextHeight) return
+  
   sessionRowHeights.value = {
     ...sessionRowHeights.value,
     [sessionId]: nextHeight,
   }
-  sessionHeightVersion.value++
+  updateHeightVersion()
 }
 
 function setSessionRowRef(element: Element | ComponentPublicInstance | null, sessionId: string) {
   if (!import.meta.client) return
+  
+  if (!sessionResizeObserver) {
+    sessionResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const id = (entry.target as HTMLElement).dataset.sessionId
+        if (!id) continue
+        const height = entry.borderBoxSize?.[0]?.blockSize ?? entry.target.getBoundingClientRect().height
+        rememberSessionRowHeight(id, height)
+      }
+    })
+  }
+
+  const prevElement = sessionRowElements.get(sessionId)
+  
   if (element === null) {
-    const observer = sessionRowObservers.get(sessionId)
-    if (observer) {
-      observer.disconnect()
-      sessionRowObservers.delete(sessionId)
-    }
+    if (prevElement) sessionResizeObserver.unobserve(prevElement)
     sessionRowElements.delete(sessionId)
     return
   }
+  
   if (!(element instanceof HTMLElement)) return
-  if (sessionRowElements.get(sessionId) === element) return
+  if (prevElement === element) return
 
-  sessionRowObservers.get(sessionId)?.disconnect()
+  if (prevElement) sessionResizeObserver.unobserve(prevElement)
+  
+  element.dataset.sessionId = sessionId
   sessionRowElements.set(sessionId, element)
+  sessionResizeObserver.observe(element, { box: 'border-box' })
+  
+  // Initial measurement
   rememberSessionRowHeight(sessionId, element.offsetHeight)
-
-  const observer = new ResizeObserver(([entry]) => {
-    if (!entry) return
-    const height = entry.borderBoxSize?.[0]?.blockSize ?? entry.target.getBoundingClientRect().height
-    rememberSessionRowHeight(sessionId, height)
-  })
-  observer.observe(element, { box: 'border-box' })
-  sessionRowObservers.set(sessionId, observer)
 }
 
 const {
@@ -192,22 +211,27 @@ const visibleSessions = computed(() =>
 )
 
 // Clean up stored heights only when sessions are truly removed from data
-watch(sessions, (items) => {
-  const allIds = new Set(items.map(session => session.id))
+const sessionIds = computed(() => sessions.value.map(s => s.id))
+watch(sessionIds, (newIds) => {
+  const idSet = new Set(newIds)
   let changed = false
-  for (const sessionId of Object.keys(sessionRowHeights.value)) {
-    if (!allIds.has(sessionId)) {
-      const { [sessionId]: _removed, ...rest } = sessionRowHeights.value
-      sessionRowHeights.value = rest
+  const nextHeights = { ...sessionRowHeights.value }
+  
+  for (const sessionId of Object.keys(nextHeights)) {
+    if (!idSet.has(sessionId)) {
+      delete nextHeights[sessionId]
       changed = true
     }
   }
-  if (changed) sessionHeightVersion.value++
-}, { deep: true })
+  
+  if (changed) {
+    sessionRowHeights.value = nextHeights
+    sessionHeightVersion.value++
+  }
+})
 
 onBeforeUnmount(() => {
-  for (const observer of sessionRowObservers.values()) observer.disconnect()
-  sessionRowObservers.clear()
+  sessionResizeObserver?.disconnect()
   sessionRowElements.clear()
 })
 
@@ -410,6 +434,23 @@ function cancelDelete() {
   resetSwipe()
 }
 
+// Confirmation for Replace-mode import (replaces ALL data)
+const showReplaceConfirm = ref(false)
+function handleImportClick() {
+  if (importMode.value === 'replace') {
+    showReplaceConfirm.value = true
+  } else {
+    importInput.value?.click()
+  }
+}
+function confirmReplaceImport() {
+  showReplaceConfirm.value = false
+  importInput.value?.click()
+}
+
+// Confirmation for Clear All Data
+const showClearDataConfirm = ref(false)
+
 // Keyboard rating selector handler
 function handleQualityKeydown(e: KeyboardEvent) {
   const current = editForm.quality
@@ -500,7 +541,53 @@ function handleSelectableGroupKeydown(e: KeyboardEvent) {
         @select="router.push('/report')"
       />
 
-      <!-- App info -->
+      <!-- Quick Links: pages moved out of nav bar -->
+      <div class="rounded-2xl border border-border/60 bg-card p-4">
+        <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quick Links</p>
+        <div class="grid grid-cols-2 gap-2">
+          <NuxtLink
+            to="/heatmap"
+            class="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-3 py-2.5 transition-colors hover:bg-muted/50"
+          >
+            <Flame class="size-4 text-orange-500" />
+            <span class="text-sm font-medium">Heat Map</span>
+          </NuxtLink>
+          <NuxtLink
+            to="/recommendations"
+            class="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-3 py-2.5 transition-colors hover:bg-muted/50"
+          >
+            <Sparkles class="size-4 text-violet-500" />
+            <span class="text-sm font-medium">Sleep Tips</span>
+          </NuxtLink>
+        </div>
+      </div>
+
+      <!-- Dark Mode Toggle -->
+      <div class="flex items-center justify-between rounded-2xl border border-border/60 bg-card px-4 py-3">
+        <div class="flex items-center gap-2">
+          <ClientOnly>
+            <component :is="isDark ? SunMedium : Moon" class="size-4 text-muted-foreground" />
+            <template #fallback><Moon class="size-4 text-muted-foreground" /></template>
+          </ClientOnly>
+          <span class="text-sm font-medium">
+            <ClientOnly>{{ isDark ? 'Light Mode' : 'Dark Mode' }}<template #fallback>Dark Mode</template></ClientOnly>
+          </span>
+        </div>
+        <button
+          class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors"
+          :class="isDark ? 'bg-primary' : 'bg-secondary'"
+          aria-label="Toggle dark mode"
+          role="switch"
+          :aria-checked="isDark"
+          @click="toggleDark"
+        >
+          <span
+            class="inline-block size-4 rounded-full bg-white shadow-sm transition-transform"
+            :class="isDark ? 'translate-x-6' : 'translate-x-1'"
+          />
+        </button>
+      </div>
+
       <div class="mt-6 rounded-2xl border border-border/40 bg-muted/30 p-4">
         <p class="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">About</p>
         <p class="text-sm font-medium">Sleep Tracker</p>
@@ -1214,7 +1301,23 @@ function handleSelectableGroupKeydown(e: KeyboardEvent) {
             </p>
           </div>
 
-          <Button variant="outline" class="w-full rounded-xl" @click="importInput?.click()">
+          <!-- Replace mode warning banner -->
+          <div
+            v-if="importMode === 'replace'"
+            class="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/8 p-3"
+          >
+            <span class="mt-0.5 text-amber-600 dark:text-amber-400 shrink-0">⚠️</span>
+            <p class="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
+              <strong>Replace mode</strong> will permanently delete all your current sessions and replace them with the backup file. This cannot be undone.
+            </p>
+          </div>
+
+          <Button
+            variant="outline"
+            class="w-full rounded-xl"
+            :class="importMode === 'replace' ? 'border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10' : ''"
+            @click="handleImportClick"
+          >
             <Download class="mr-2 size-4" />
             Import JSON Backup
           </Button>
@@ -1270,6 +1373,41 @@ function handleSelectableGroupKeydown(e: KeyboardEvent) {
               @click="handleDeleteConfirm"
             >
               Delete
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Replace Import Confirmation Modal -->
+    <Transition name="dialog-fade">
+      <div
+        v-if="showReplaceConfirm"
+        class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-4 pb-10"
+        @click="showReplaceConfirm = false"
+      >
+        <div
+          class="w-full max-w-sm rounded-3xl bg-card border border-border/80 p-6 shadow-2xl"
+          @click.stop
+        >
+          <div class="mb-5 text-center">
+            <div class="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
+              <Upload class="size-6" />
+            </div>
+            <h3 class="text-lg font-bold">Replace All Data?</h3>
+            <p class="mt-2 text-xs text-muted-foreground leading-relaxed">
+              This will permanently delete <strong>all</strong> your current sleep sessions and replace them with the backup file. There is no undo for this action.
+            </p>
+          </div>
+          <div class="flex gap-3">
+            <Button variant="outline" class="flex-1 rounded-xl" @click="showReplaceConfirm = false">
+              Cancel
+            </Button>
+            <Button
+              class="flex-1 rounded-xl bg-amber-600 text-white hover:bg-amber-700"
+              @click="confirmReplaceImport"
+            >
+              Replace All
             </Button>
           </div>
         </div>

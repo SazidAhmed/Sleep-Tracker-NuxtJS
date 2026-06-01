@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MoonStar, Play, Square, X, Plus, ChevronRight, Save, Trash2, Clock, Sparkles, Zap, Moon, Sunrise, AlarmClock, Bell, Volume2, Brain } from 'lucide-vue-next'
+import { MoonStar, Play, Square, X, Plus, ChevronRight, Save, Trash2, Clock, Sparkles, Zap, Bell, Volume2, Brain, AlarmClock, Sunrise } from 'lucide-vue-next'
 import { getQualityLabel, type SessionTemplate, calculateOptimalWakeTimes, getRecommendedWakeTime, type OptimalWakeTime, type AlarmType } from '@/lib/sleep'
 import { useSleepData } from '@/composables/useSleepData'
 import { toDateTimeLocalValue, getQualityEmoji } from '@/lib/sleep'
@@ -169,33 +169,27 @@ function handleCancelSleep() {
   haptics.light()
 }
 
-// Smooth ticking timer state
+// 1-second ticker for the timer display (setInterval is sufficient; rAF at 60fps was wasteful)
 const localNow = ref(new Date())
-let animationFrameId: number | null = null
-
-function updateLocalTime() {
-  localNow.value = new Date()
-  if (activeSessionStart.value) {
-    animationFrameId = requestAnimationFrame(updateLocalTime)
-  }
-}
+let timerIntervalId: ReturnType<typeof setInterval> | null = null
 
 watch(() => activeSessionStart.value, (start) => {
   if (start) {
-    if (!animationFrameId) {
-      updateLocalTime()
+    if (!timerIntervalId) {
+      localNow.value = new Date() // immediate update
+      timerIntervalId = setInterval(() => { localNow.value = new Date() }, 1000)
     }
   } else {
-    if (animationFrameId) {
-      cancelAnimationFrame(animationFrameId)
-      animationFrameId = null
+    if (timerIntervalId) {
+      clearInterval(timerIntervalId)
+      timerIntervalId = null
     }
   }
 }, { immediate: true })
 
 onBeforeUnmount(() => {
-  if (animationFrameId) {
-    cancelAnimationFrame(animationFrameId)
+  if (timerIntervalId) {
+    clearInterval(timerIntervalId)
   }
 })
 
@@ -399,55 +393,14 @@ const showAlarmSettings = ref(false)
 </script>
 
 <template>
-  <!-- Alarm Firing Overlay -->
-  <Transition name="alarm-overlay">
-    <div
-      v-if="isAlarmFiring"
-      class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm"
-    >
-      <div class="flex flex-col items-center gap-6 px-6">
-        <!-- Animated alarm icon -->
-        <div class="relative">
-          <div class="absolute inset-0 animate-ping rounded-full bg-primary/20" />
-          <div class="relative flex size-24 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30">
-            <AlarmClock class="size-12" />
-          </div>
-        </div>
-
-        <div class="text-center">
-          <h2 class="text-2xl font-bold">
-            {{ alarmFiringType === 'smart' ? 'Smart Alarm' : 'Wake Up!' }}
-          </h2>
-          <p class="mt-1 text-sm text-muted-foreground">
-            {{ alarmFiringType === 'smart' && smartAlarmWakeTime ? smartAlarmWakeTime.label : `It's ${alarmConfig.time}` }}
-          </p>
-          <p v-if="alarmConfig.snoozeCount > 0" class="mt-0.5 text-xs text-muted-foreground/70">
-            Snoozed {{ alarmConfig.snoozeCount }} time{{ alarmConfig.snoozeCount > 1 ? 's' : '' }}
-          </p>
-        </div>
-
-        <div class="flex w-full max-w-xs gap-3">
-          <Button
-            variant="outline"
-            class="flex-1 rounded-2xl py-5"
-            size="lg"
-            @click="handleSnoozeAlarm"
-          >
-            <Moon class="mr-2 size-5" />
-            Snooze
-          </Button>
-          <Button
-            class="flex-1 rounded-2xl py-5"
-            size="lg"
-            @click="handleDismissAlarm"
-          >
-            <Sunrise class="mr-2 size-5" />
-            Dismiss
-          </Button>
-        </div>
-      </div>
-    </div>
-  </Transition>
+  <AlarmOverlay
+    :is-alarm-firing="isAlarmFiring"
+    :alarm-firing-type="alarmFiringType"
+    :smart-alarm-wake-time="smartAlarmWakeTime"
+    :alarm-config="alarmConfig"
+    @dismiss="handleDismissAlarm"
+    @snooze="handleSnoozeAlarm"
+  />
 
   <div class="min-h-screen p-4 pb-24">
     <!-- Header -->
@@ -456,7 +409,7 @@ const showAlarmSettings = ref(false)
         <div class="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <MoonStar class="size-5" />
         </div>
-        <span class="text-lg font-semibold">Sleep Timer</span>
+        <h1 class="text-lg font-semibold">Sleep Timer</h1>
       </div>
       <!-- Alarm indicator in header -->
       <div v-if="alarmConfig.enabled" class="flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1">
@@ -1025,15 +978,5 @@ const showAlarmSettings = ref(false)
 </template>
 
 <style scoped>
-.alarm-overlay-enter-active {
-  transition: all 0.3s ease-out;
-}
-.alarm-overlay-leave-active {
-  transition: all 0.2s ease-in;
-}
-.alarm-overlay-enter-from,
-.alarm-overlay-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
+/* Alarm overlay styles live in AlarmOverlay.vue */
 </style>

@@ -215,11 +215,19 @@ async function handleTouchEnd() {
     </div>
     <!-- Goal Celebration Confetti Overlay -->
     <Teleport to="body">
-      <div v-if="showCelebration" class="pointer-events-none fixed inset-0 z-[100] overflow-hidden">
+      <div
+        v-if="showCelebration"
+        class="pointer-events-none fixed inset-0 z-[100] overflow-hidden"
+        aria-live="polite"
+        aria-atomic="true"
+        role="status"
+      >
+        <span class="sr-only">Daily sleep goal reached!</span>
         <span
           v-for="p in confettiParticles"
           :key="p.id"
           class="confetti-particle absolute top-0 select-none text-2xl"
+          aria-hidden="true"
           :style="{
             left: `${p.x}%`,
             animationDelay: `${p.delay}s`,
@@ -329,7 +337,7 @@ async function handleTouchEnd() {
         <div class="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/30">
           <MoonStar class="size-5" />
         </div>
-        <span class="text-lg font-semibold">Sleep Tracker</span>
+        <h1 class="text-lg font-semibold">Sleep Tracker</h1>
       </div>
       <div class="rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
         {{ formatDateLabel(todaySummary.date).split(',')[0] }}

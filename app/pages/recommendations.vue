@@ -71,7 +71,7 @@ function restoreAllDismissed() {
           <Sparkles class="size-5" />
         </div>
         <div>
-          <span class="text-lg font-semibold">Recommendations</span>
+          <h1 class="text-lg font-semibold">Recommendations</h1>
           <p class="text-xs text-muted-foreground">AI-powered sleep insights</p>
         </div>
       </div>

@@ -62,7 +62,7 @@ function handleDayClick(date: string) {
         <div class="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <Calendar class="size-5" />
         </div>
-        <span class="text-lg font-semibold">Calendar</span>
+        <h1 class="text-lg font-semibold">Calendar</h1>
       </div>
     </header>
 
