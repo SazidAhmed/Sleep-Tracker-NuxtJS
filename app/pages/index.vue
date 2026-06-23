@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { MoonStar, Clock, Zap, Flame, ArrowRight, Lightbulb, Play, Plus, History, BarChart3, X, Sparkles, Download, BookOpen } from 'lucide-vue-next'
+import { MoonStar, Clock, Zap, Flame, ArrowRight, Lightbulb, Sparkles, Download } from 'lucide-vue-next'
 import { useSleepData } from '@/composables/useSleepData'
 import { useSleepAnalytics } from '@/composables/useSleepAnalytics'
 import { getQualityEmoji, getQualityLabel } from '@/lib/sleep'
-import { useLongPress } from '@/composables/useLongPress'
 import { useHaptics } from '@/composables/useHaptics'
 import { usePwaInstall } from '@/composables/usePwaInstall'
 
@@ -41,6 +40,10 @@ function getGradeBadgeClass(grade: string) {
 }
 
 const progressWidth = computed(() => `${Math.min(todaySummary.value.percentage, 100)}%`)
+const todaySessions = computed(() => {
+  if (!todaySummary.value || !todaySummary.value.sessions) return []
+  return [...todaySummary.value.sessions].sort((a, b) => b.start.localeCompare(a.start))
+})
 const isGoalCompleted = computed(() => todaySummary.value.remainingMinutes === 0)
 const progressColor = computed(() => {
   const pct = todaySummary.value.percentage
@@ -85,11 +88,7 @@ onBeforeUnmount(() => {
   if (celebrationTimeout) clearTimeout(celebrationTimeout)
 })
 
-// Quick Actions
-const showQuickActions = ref(false)
-const quickActionArea = ref<HTMLElement | null>(null)
 const haptics = useHaptics()
-const router = useRouter()
 const { canInstall, promptInstall, dismiss } = usePwaInstall()
 
 // Onboarding
@@ -103,27 +102,6 @@ onMounted(() => {
     showOnboarding.value = true
   }
 })
-
-useLongPress(quickActionArea, {
-  onLongPress: () => {
-    haptics.medium()
-    showQuickActions.value = true
-  },
-})
-
-function closeQuickActions() {
-  showQuickActions.value = false
-}
-
-function quickNavigate(path: string) {
-  closeQuickActions()
-  router.push(path)
-}
-
-function quickStartTimer() {
-  closeQuickActions()
-  router.push('/timer')
-}
 // Pull-to-refresh gesture handling
 const isRefreshing = ref(false)
 const pullDistance = ref(0)
@@ -186,7 +164,6 @@ async function handleTouchEnd() {
 
 <template>
   <div
-    ref="quickActionArea"
     class="relative min-h-screen p-4 pb-24 transition-transform duration-150 ease-out"
     :style="{ transform: pullDistance > 0 ? `translateY(${pullDistance * 0.4}px)` : 'translateY(0px)' }"
     @touchstart="handleTouchStart"
@@ -269,71 +246,7 @@ async function handleTouchEnd() {
       </div>
     </div>
 
-    <!-- Quick Actions Modal -->
-    <div
-      v-if="showQuickActions"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      @click="closeQuickActions"
-    >
-      <div class="w-full max-w-xs rounded-3xl bg-card p-6 shadow-2xl" @click.stop>
-        <div class="mb-4 flex items-center justify-between">
-          <h3 class="text-lg font-semibold">Quick Actions</h3>
-          <Button variant="ghost" size="icon" class="size-8" @click="closeQuickActions">
-            <X class="size-4" />
-          </Button>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <button
-            class="flex flex-col items-center gap-2 rounded-2xl bg-primary/10 p-4 transition-colors hover:bg-primary/20"
-            @click="quickStartTimer"
-          >
-            <div class="flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Play class="size-6" />
-            </div>
-            <span class="text-sm font-medium">Start Timer</span>
-          </button>
-          <button
-            class="flex flex-col items-center gap-2 rounded-2xl bg-secondary/50 p-4 transition-colors hover:bg-secondary"
-            @click="quickNavigate('/timer')"
-          >
-            <div class="flex size-12 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
-              <Plus class="size-6" />
-            </div>
-            <span class="text-sm font-medium">Log Sleep</span>
-          </button>
-          <button
-            class="flex flex-col items-center gap-2 rounded-2xl bg-secondary/50 p-4 transition-colors hover:bg-secondary"
-            @click="quickNavigate('/history')"
-          >
-            <div class="flex size-12 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
-              <BarChart3 class="size-6" />
-            </div>
-            <span class="text-sm font-medium">History</span>
-          </button>
-          <button
-            class="flex flex-col items-center gap-2 rounded-2xl bg-secondary/50 p-4 transition-colors hover:bg-secondary"
-            @click="quickNavigate('/calendar')"
-          >
-            <div class="flex size-12 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
-              <History class="size-6" />
-            </div>
-            <span class="text-sm font-medium">Calendar</span>
-          </button>
-          <button
-            class="col-span-2 flex items-center justify-center gap-3 rounded-2xl bg-secondary/50 p-3 transition-colors hover:bg-secondary"
-            @click="quickNavigate('/journal')"
-          >
-            <div class="flex size-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-500">
-              <BookOpen class="size-5" />
-            </div>
-            <span class="text-sm font-medium">Dream Journal</span>
-          </button>
-        </div>
-        <p class="mt-4 text-center text-xs text-muted-foreground">
-          Long-press anywhere to show this menu
-        </p>
-      </div>
-    </div>
+
 
     <!-- Header -->
     <header class="mb-6 flex items-center justify-between">
@@ -480,8 +393,94 @@ async function handleTouchEnd() {
       </div>
     </NuxtLink>
 
-    <!-- Last Session Card -->
-    <div v-if="latestSession" class="mb-4 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+    <!-- Today's Sessions Card (if there are sessions today) -->
+    <div v-if="todaySessions.length > 0" class="mb-4 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
+      <div class="mb-4 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <Clock class="size-4 text-primary" />
+          <h3 class="text-xs font-bold uppercase tracking-wider text-muted-foreground">Today's Sessions</h3>
+        </div>
+        <span class="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
+          {{ todaySessions.length }} {{ todaySessions.length === 1 ? 'session' : 'sessions' }}
+        </span>
+      </div>
+
+      <!-- Latest Session of Today -->
+      <div class="rounded-2xl bg-secondary/30 p-4 border border-border/30" :class="{ 'mb-4': todaySessions.length > 1 }">
+        <p class="text-[9px] font-semibold uppercase tracking-wider text-primary mb-1.5">Last Session (Latest)</p>
+        <div class="flex items-center gap-2">
+          <p class="text-2xl font-bold">
+            {{ formatDurationFromMinutes(getSessionDurationMinutes(todaySessions[0])) }}
+          </p>
+          <span v-if="todaySessions[0].quality" class="text-2xl" :title="getQualityLabel(todaySessions[0].quality)">
+            {{ getQualityEmoji(todaySessions[0].quality) }}
+          </span>
+        </div>
+        <p class="text-xs text-muted-foreground mt-0.5">
+          {{ formatTimeLabel(todaySessions[0].start) }} → {{ formatTimeLabel(todaySessions[0].end) }}
+        </p>
+        <div v-if="todaySessions[0].tags?.length" class="mt-2.5 flex flex-wrap gap-1">
+          <span
+            v-for="tag in todaySessions[0].tags"
+            :key="tag"
+            class="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary"
+          >
+            {{ tag }}
+          </span>
+        </div>
+        <div v-if="todaySessions[0].notes" class="mt-2.5 text-xs text-muted-foreground italic border-l-2 border-primary/30 pl-2">
+          "{{ todaySessions[0].notes }}"
+        </div>
+      </div>
+
+      <!-- Other Sessions of Today -->
+      <div v-if="todaySessions.length > 1" class="space-y-3">
+        <div class="flex items-center gap-2 px-1">
+          <p class="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Other Sessions Today</p>
+          <div class="h-px flex-1 bg-border/40" />
+        </div>
+        <div class="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+          <div
+            v-for="session in todaySessions.slice(1)"
+            :key="session.id"
+            class="flex items-center justify-between rounded-2xl bg-secondary/15 p-3.5 hover:bg-secondary/25 transition-all border border-border/20"
+          >
+            <div class="flex items-center gap-3">
+              <div class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
+                <Clock class="size-4" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-xs font-semibold text-foreground">
+                  {{ formatTimeLabel(session.start) }} → {{ formatTimeLabel(session.end) }}
+                </p>
+                <div v-if="session.tags?.length" class="mt-1 flex flex-wrap gap-1">
+                  <span
+                    v-for="tag in session.tags"
+                    :key="tag"
+                    class="rounded-full bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground"
+                  >
+                    {{ tag }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="text-right flex items-center gap-2">
+              <div>
+                <p class="text-sm font-bold">
+                  {{ formatDurationFromMinutes(getSessionDurationMinutes(session)) }}
+                </p>
+              </div>
+              <span v-if="session.quality" class="text-lg" :title="getQualityLabel(session.quality)">
+                {{ getQualityEmoji(session.quality) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fallback Last Session Card (if no sessions today but a previous session exists) -->
+    <div v-else-if="latestSession" class="mb-4 rounded-3xl border border-border/60 bg-card p-5 shadow-sm">
       <div class="mb-3 flex items-center gap-2">
         <Clock class="size-4 text-muted-foreground" />
         <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Last Session</p>
