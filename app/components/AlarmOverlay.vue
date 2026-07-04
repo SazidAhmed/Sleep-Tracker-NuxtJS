@@ -24,7 +24,7 @@ const emit = defineEmits<{
   <Transition name="alarm-overlay">
     <div
       v-if="isAlarmFiring"
-      class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm"
+      class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm"
       role="alertdialog"
       aria-modal="true"
       aria-label="Alarm firing"

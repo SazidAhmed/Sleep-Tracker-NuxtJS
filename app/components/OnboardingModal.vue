@@ -72,7 +72,7 @@ function skipOnboarding() {
 <template>
   <div
     v-if="modelValue"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
   >
     <div class="w-full max-w-sm rounded-3xl bg-card p-6 shadow-2xl">
       <!-- Header with skip button -->

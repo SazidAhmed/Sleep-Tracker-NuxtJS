@@ -48,7 +48,7 @@ const buttonMap = {
   <Transition name="dialog-fade">
     <div
       v-if="show"
-      class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-4 pb-10"
+      class="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 backdrop-blur-sm p-4 pb-10"
       @click="emit('cancel')"
     >
       <div

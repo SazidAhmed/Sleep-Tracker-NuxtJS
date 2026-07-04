@@ -263,7 +263,7 @@ function handleUndoDelete() {
     <!-- Undo Delete Toast -->
     <div
       v-if="lastDeletedSession"
-      class="fixed bottom-20 left-4 right-4 z-50 flex items-center justify-between rounded-2xl bg-foreground p-4 text-background shadow-lg"
+      class="fixed bottom-20 left-4 right-4 z-[100] flex items-center justify-between rounded-2xl bg-foreground p-4 text-background shadow-lg"
     >
       <div class="flex items-center gap-3">
         <Trash2 class="size-4 text-destructive" />

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Plus, ChevronRight } from 'lucide-vue-next'
-import { reactive, ref } from 'vue'
+import { Plus, ChevronRight, Check, Loader2 } from 'lucide-vue-next'
+import { reactive, ref, onBeforeUnmount } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,18 +23,59 @@ const sessionForm = reactive({
 })
 
 const errorMessage = ref('')
+const isSaving = ref(false)
+const showToast = ref(false)
+let toastTimeout: ReturnType<typeof setTimeout> | null = null
 
 function handleSaveSession() {
+  if (isSaving.value) return
   errorMessage.value = ''
-  const result = saveSession({ ...sessionForm })
-  if (result.error) { errorMessage.value = result.error; haptics.error(); return }
-  haptics.success()
-  // Reset
-  const nextEnd = new Date()
-  sessionForm.start = toDateTimeLocalValue(new Date(nextEnd.getTime() - 90 * 60 * 1000))
-  sessionForm.end = toDateTimeLocalValue(nextEnd)
-  sessionForm.quality = undefined; sessionForm.tags = []; sessionForm.notes = ''
+
+  // Validate session start and end times first
+  const startMs = new Date(sessionForm.start).getTime()
+  const endMs = new Date(sessionForm.end).getTime()
+  if (endMs <= startMs) {
+    errorMessage.value = 'End time must be later than start time.'
+    haptics.error()
+    return
+  }
+
+  isSaving.value = true
+
+  // Simulate save delay to prevent double clicks and show loading feedback
+  setTimeout(() => {
+    const result = saveSession({ ...sessionForm })
+    if (result.error) {
+      errorMessage.value = result.error
+      haptics.error()
+      isSaving.value = false
+      return
+    }
+
+    haptics.success()
+
+    // Reset Form
+    const nextEnd = new Date()
+    sessionForm.start = toDateTimeLocalValue(new Date(nextEnd.getTime() - 90 * 60 * 1000))
+    sessionForm.end = toDateTimeLocalValue(nextEnd)
+    sessionForm.quality = undefined
+    sessionForm.tags = []
+    sessionForm.notes = ''
+
+    isSaving.value = false
+
+    // Show Success Toast
+    showToast.value = true
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => {
+      showToast.value = false
+    }, 3000)
+  }, 800)
 }
+
+onBeforeUnmount(() => {
+  if (toastTimeout) clearTimeout(toastTimeout)
+})
 
 function handleQualityKeydown(e: KeyboardEvent) {
   handleGroupKeydown(
@@ -120,9 +161,37 @@ function handleTagsKeydown(e: KeyboardEvent) {
       </div>
 
       <p v-if="errorMessage" class="text-sm text-destructive">{{ errorMessage }}</p>
-      <Button class="w-full rounded-2xl py-5" size="lg" @click="handleSaveSession">
-        Save Session <ChevronRight class="ml-2 size-4" />
+      <Button :disabled="isSaving" class="w-full rounded-2xl py-5" size="lg" @click="handleSaveSession">
+        <template v-if="isSaving">
+          <Loader2 class="mr-2 size-4 animate-spin" />
+          Saving...
+        </template>
+        <template v-else>
+          Save Session <ChevronRight class="ml-2 size-4" />
+        </template>
       </Button>
     </div>
+
+    <!-- Toast Notification -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="translate-y-10 opacity-0"
+        enter-to-class="translate-y-0 opacity-100"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="translate-y-0 opacity-100"
+        leave-to-class="translate-y-10 opacity-0"
+      >
+        <div
+          v-if="showToast"
+          class="fixed bottom-24 left-4 right-4 z-[9999] mx-auto flex max-w-sm items-center gap-3 rounded-2xl bg-foreground p-4 text-background shadow-xl"
+        >
+          <div class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary">
+            <Check class="size-4" />
+          </div>
+          <span class="text-sm font-medium">Sleep session logged successfully!</span>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
