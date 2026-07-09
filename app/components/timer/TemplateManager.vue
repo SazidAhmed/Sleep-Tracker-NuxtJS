@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Zap, Plus, Clock, Save, Trash2 } from 'lucide-vue-next'
-import { ref, reactive } from 'vue'
+import { Zap, Plus, Clock, Save, Trash2, Pencil, Check } from 'lucide-vue-next'
+import { ref, reactive, onBeforeUnmount } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useSleepData } from '@/composables/useSleepData'
@@ -27,19 +27,63 @@ const templateForm = reactive({
   defaultTags: [] as string[],
 })
 const templateError = ref('')
+const editingTemplateId = ref<string | null>(null)
+const showToast = ref(false)
+let toastTimeout: ReturnType<typeof setTimeout> | null = null
+
+onBeforeUnmount(() => {
+  if (toastTimeout) clearTimeout(toastTimeout)
+})
+
+function resetForm() {
+  templateForm.name = ''
+  templateForm.durationMinutes = 480
+  templateForm.defaultQuality = undefined
+  templateForm.defaultTags = []
+  editingTemplateId.value = null
+}
+
+function toggleForm() {
+  if (showTemplateForm.value) {
+    showTemplateForm.value = false
+    resetForm()
+  } else {
+    resetForm()
+    showTemplateForm.value = true
+  }
+}
 
 function handleUseTemplate(id: string) {
   const result = useTemplate(id)
-  if (result.error) { templateError.value = result.error; haptics.error() }
-  else { templateError.value = ''; haptics.success() }
+  if (result.error) {
+    templateError.value = result.error
+    haptics.error()
+  } else {
+    templateError.value = ''
+    haptics.success()
+    showToast.value = true
+    if (toastTimeout) clearTimeout(toastTimeout)
+    toastTimeout = setTimeout(() => {
+      showToast.value = false
+    }, 3000)
+  }
 }
 
 function handleSaveTemplate() {
   if (!templateForm.name.trim()) { templateError.value = 'Name required'; haptics.error(); return }
-  saveTemplate({ ...templateForm, name: templateForm.name.trim() })
+  saveTemplate({ ...templateForm, name: templateForm.name.trim() }, editingTemplateId.value || undefined)
   haptics.success()
   showTemplateForm.value = false
-  templateForm.name = ''; templateForm.durationMinutes = 480; templateForm.defaultQuality = undefined; templateForm.defaultTags = []
+  resetForm()
+}
+
+function handleEditTemplate(template: SessionTemplate) {
+  templateForm.name = template.name
+  templateForm.durationMinutes = template.durationMinutes
+  templateForm.defaultQuality = template.defaultQuality
+  templateForm.defaultTags = [...(template.defaultTags || [])]
+  editingTemplateId.value = template.id
+  showTemplateForm.value = true
 }
 
 const showDeleteConfirm = ref(false)
@@ -69,7 +113,7 @@ function confirmDeleteTemplate() {
         </div>
         <h2 class="text-base font-semibold">Quick Templates</h2>
       </div>
-      <Button variant="ghost" size="sm" class="rounded-lg text-xs" @click="showTemplateForm = !showTemplateForm">
+      <Button variant="ghost" size="sm" class="rounded-lg text-xs" @click="toggleForm">
         <Plus class="mr-1 size-3" /> {{ showTemplateForm ? 'Cancel' : 'New' }}
       </Button>
     </div>
@@ -88,7 +132,7 @@ function confirmDeleteTemplate() {
         </button>
       </div>
       <div class="flex gap-2">
-        <Button variant="outline" class="flex-1 rounded-xl" @click="showTemplateForm = false">Cancel</Button>
+        <Button variant="outline" class="flex-1 rounded-xl" @click="toggleForm">Cancel</Button>
         <Button class="flex-1 rounded-xl" @click="handleSaveTemplate"><Save class="mr-1 size-4" /> Save</Button>
       </div>
     </div>
@@ -102,9 +146,14 @@ function confirmDeleteTemplate() {
           </div>
           <p class="text-xs text-muted-foreground">{{ formatDurationFromMinutes(template.durationMinutes) }}</p>
         </button>
-        <button class="absolute right-1.5 top-1.5 rounded-full p-1 opacity-0 group-hover:opacity-100 hover:text-destructive" @click.stop="handleDeleteTemplate(template.id)">
-          <Trash2 class="size-3" />
-        </button>
+        <div class="absolute right-1.5 top-1.5 flex opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity bg-muted/60 md:bg-transparent rounded-full md:rounded-none backdrop-blur-sm md:backdrop-blur-none p-0.5 md:p-0">
+          <button class="rounded-full p-1 text-muted-foreground/70 hover:text-foreground" @click.stop="handleEditTemplate(template)">
+            <Pencil class="size-3" />
+          </button>
+          <button class="rounded-full p-1 text-muted-foreground/70 hover:text-destructive" @click.stop="handleDeleteTemplate(template.id)">
+            <Trash2 class="size-3" />
+          </button>
+        </div>
       </div>
     </div>
     <div v-else class="text-center py-4 text-xs text-muted-foreground">No templates yet</div>
@@ -116,5 +165,27 @@ function confirmDeleteTemplate() {
       @confirm="confirmDeleteTemplate"
       @cancel="showDeleteConfirm = false"
     />
+
+    <!-- Toast Notification -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="translate-y-10 opacity-0"
+        enter-to-class="translate-y-0 opacity-100"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="translate-y-0 opacity-100"
+        leave-to-class="translate-y-10 opacity-0"
+      >
+        <div
+          v-if="showToast"
+          class="fixed bottom-24 left-4 right-4 z-[9999] mx-auto flex max-w-sm items-center gap-3 rounded-2xl bg-foreground p-4 text-background shadow-xl"
+        >
+          <div class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary">
+            <Check class="size-4" />
+          </div>
+          <span class="text-sm font-medium">Sleep session logged successfully!</span>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>

@@ -179,9 +179,11 @@ function _useSleepData() {
     return { error: 'No session to restore' }
   }
 
-  function saveTemplate(template: Omit<SessionTemplate, 'id' | 'createdAt'>) {
-    const newTemplate: SessionTemplate = { ...template, id: crypto.randomUUID() }
-    templates.value = [newTemplate, ...templates.value]
+  function saveTemplate(template: Omit<SessionTemplate, 'id' | 'createdAt'>, id?: string) {
+    const newTemplate: SessionTemplate = { ...template, id: id ?? crypto.randomUUID() }
+    templates.value = id
+      ? templates.value.map(t => t.id === id ? newTemplate : t)
+      : [newTemplate, ...templates.value]
     return { success: true, template: newTemplate }
   }
 
